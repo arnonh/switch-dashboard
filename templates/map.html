@@ -1035,6 +1035,77 @@
   }
 
   // ==========================================
+  // SSID EXTRACTION & GROUPING HELPERS
+  // ==========================================
+  function getClientSsid(client, parentId, links) {
+    if (!client) return '';
+    if (client.ssid && typeof client.ssid === 'string' && client.ssid.trim()) {
+      return client.ssid.trim();
+    }
+    if (links && Array.isArray(links)) {
+      const link = links.find(l => l.target === client.id && (!parentId || l.source === parentId));
+      if (link) {
+        if (link.ssid && typeof link.ssid === 'string' && link.ssid.trim()) {
+          return link.ssid.trim();
+        }
+        const sp = String(link.source_port || '').trim();
+        if (sp.toLowerCase().startsWith('ssid:')) {
+          return sp.substring(5).trim();
+        }
+      }
+    }
+    const lp = String(client.last_seen_port || '').trim();
+    if (lp.toLowerCase().startsWith('ssid:')) {
+      return lp.substring(5).trim();
+    }
+    return '';
+  }
+
+  function getClientSortKey(client, parentId, links) {
+    if (!client) return '9_null';
+    const ssid = getClientSsid(client, parentId, links);
+    let band = String(client.wifi_band || '').toUpperCase();
+    let port = '';
+
+    if (links && Array.isArray(links)) {
+      const link = links.find(l => l.target === client.id && (!parentId || l.source === parentId));
+      if (link) {
+        if (!band && link.wifi_band) band = String(link.wifi_band).toUpperCase();
+        if (link.source_port && !String(link.source_port).toLowerCase().startsWith('ssid:')) {
+          port = String(link.source_port);
+        }
+      }
+    }
+    if (!port && client.last_seen_port && !String(client.last_seen_port).toLowerCase().startsWith('ssid:')) {
+      port = String(client.last_seen_port);
+    }
+
+    const name = String(client.name || client.mac || client.id || '').toLowerCase();
+
+    // Priority 1: Wireless clients with a distinct SSID (grouped strictly by SSID name)
+    if (ssid) {
+      const bandOrder = band.includes('5') ? '1' : (band.includes('2.4') ? '2' : (band.includes('6') ? '0' : '3'));
+      return `1_${ssid.toLowerCase()}_${bandOrder}_${name}`;
+    }
+
+    // Priority 2: Wireless clients without explicit SSID (grouped by Wi-Fi band)
+    if (band || (port && (port.toLowerCase().includes('wifi') || port.toLowerCase().includes('wlan')))) {
+      const bandOrder = band.includes('5') ? '1' : (band.includes('2.4') ? '2' : '3');
+      return `2_wifi_${bandOrder}_${name}`;
+    }
+
+    // Priority 3: Wired clients (grouped by port name with natural number sorting)
+    if (port) {
+      const numMatch = port.match(/\d+/);
+      const portNum = numMatch ? String(numMatch[0]).padStart(4, '0') : port.toLowerCase();
+      return `3_port_${portNum}_${name}`;
+    }
+
+    // Priority 4: Other / Offline / Unknown clients
+    return `4_other_${name}`;
+  }
+
+  // ==========================================
   // MULTI-MODE LAYOUT ENGINE (7 MODES)
   // ==========================================
   function computeLayout(filteredNodes, filteredLinks, forcedMode = null) {
@@ -1133,6 +1204,15 @@
       }
     });
 
+    // Group clients under each parent switch/AP by SSID, frequency band, and port as much as possible
+    Object.keys(clientsByParent).forEach(parentId => {
+      clientsByParent[parentId].sort((a, b) => {
+        const keyA = getClientSortKey(a, parentId, filteredLinks);
+        const keyB = getClientSortKey(b, parentId, filteredLinks);
+        return keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+    });
+
     // If no forcedMode, and all nodes have cached positions, retain them!
     if (!forcedMode) {
       let allCached = true;
@@ -1180,10 +1260,12 @@
         assignedNodeIds.add(infra.id);
         const directClients = clientsByParent[infra.id] || [];
         directClients.forEach(c => assignedNodeIds.add(c.id));
+        const ssids = Array.from(new Set(directClients.map(c => getClientSsid(c, infra.id, filteredLinks)).filter(Boolean)));
+        const ssidSubtitle = ssids.length > 0 ? ` · SSIDs: ${ssids.join(', ')}` : '';
         pods.push({
           id: `pod_${infra.id}`,
           title: infra.name || 'Switch Island',
-          subtitle: `${directClients.length} device${directClients.length === 1 ? '' : 's'}`,
+          subtitle: `${directClients.length} device${directClients.length === 1 ? '' : 's'}${ssidSubtitle}`,
           type: infra.type,
           headerNode: infra,
           memberNodes: [infra, ...directClients],
@@ -1194,6 +1276,11 @@
       // 3. Leftover orphan clients
       const orphans = filteredNodes.filter(n => !assignedNodeIds.has(n.id));
       if (orphans.length > 0) {
+        orphans.sort((a, b) => {
+          const keyA = getClientSortKey(a, null, filteredLinks);
+          const keyB = getClientSortKey(b, null, filteredLinks);
+          return keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+        });
         pods.push({
           id: 'pod_other',
           title: 'Other Network Devices',
@@ -1310,6 +1397,23 @@
       const startX = Math.max(60, (svgWidth - totalColsWidth) / 2);
 
       activeCols.forEach((col, cIdx) => {
+        // Sort items within each column: infrastructure first, then clients grouped by SSID / parent
+        col.items.sort((a, b) => {
+          if (a.type !== 'client' && b.type === 'client') return -1;
+          if (a.type === 'client' && b.type !== 'client') return 1;
+          if (a.type === 'client' && b.type === 'client') {
+            let parentA = '', parentB = '';
+            filteredLinks.forEach(l => {
+              if (l.target === a.id) parentA = l.source;
+              if (l.target === b.id) parentB = l.source;
+            });
+            const keyA = getClientSortKey(a, parentA, filteredLinks);
+            const keyB = getClientSortKey(b, parentB, filteredLinks);
+            return keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+          }
+          return (a.name || '').localeCompare(b.name || '');
+        });
+
         const x = startX + cIdx * (colWidth + colGap);
         const colCenterX = x + colWidth / 2;
         const count = col.items.length;
@@ -1362,10 +1466,12 @@
           });
 
           if (directClients.length > 0) {
+            const ssids = Array.from(new Set(directClients.map(c => getClientSsid(c, node.id, filteredLinks)).filter(Boolean)));
+            const ssidSubtitle = ssids.length > 0 ? ` · SSIDs: ${ssids.join(', ')}` : '';
             activeGroups.push({
               id: `grp_horiz_${node.id}`,
               title: node.name,
-              subtitle: `${directClients.length} clients`,
+              subtitle: `${directClients.length} clients${ssidSubtitle}`,
               x: node.x - 15,
               y: curY + 5,
               width: 280 + (directClients.length > 1 ? 450 : 225),
@@ -1387,7 +1493,21 @@
         { name: 'Tier 0: WAN & Gateway', color: '#a855f7', nodes: filteredNodes.filter(n => n.type === 'internet' || n.type === 'router') },
         { name: 'Tier 1: Core Switches', color: '#388bfd', nodes: filteredNodes.filter(n => n.type === 'switch') },
         { name: 'Tier 2: Edge Switches & APs', color: '#f97316', nodes: filteredNodes.filter(n => n.type === 'unmanaged_switch' || n.type === 'repeater') },
-        { name: 'Tier 3: Client Devices', color: '#10b981', nodes: filteredNodes.filter(n => n.type === 'client') }
+        {
+          name: 'Tier 3: Client Devices',
+          color: '#10b981',
+          nodes: filteredNodes.filter(n => n.type === 'client').sort((a, b) => {
+            let parentA = '', parentB = '';
+            filteredLinks.forEach(l => {
+              if (l.target === a.id) parentA = l.source;
+              if (l.target === b.id) parentB = l.source;
+            });
+            if (parentA !== parentB) return parentA.localeCompare(parentB);
+            const keyA = getClientSortKey(a, parentA, filteredLinks);
+            const keyB = getClientSortKey(b, parentB, filteredLinks);
+            return keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+          })
+        }
       ];
 
       let currentY = 70;
@@ -1480,7 +1600,23 @@
       const cy = svgHeight / 2;
       const numNodes = filteredNodes.length;
 
-      filteredNodes.forEach((node, idx) => {
+      // Group nodes for initial ring layout: infrastructure first, then clients clustered by (parent, SSID)
+      const sortedForForce = [...filteredNodes].sort((a, b) => {
+        if (a.type !== 'client' && b.type === 'client') return -1;
+        if (a.type === 'client' && b.type !== 'client') return 1;
+        if (a.type === 'client' && b.type === 'client') {
+          let parentA = '', parentB = '';
+          filteredLinks.forEach(l => {
+            if (l.target === a.id) parentA = l.source;
+            if (l.target === b.id) parentB = l.source;
+          });
+          if (parentA !== parentB) return parentA.localeCompare(parentB);
+          return getClientSortKey(a, parentA, filteredLinks).localeCompare(getClientSortKey(b, parentB, filteredLinks));
+        }
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      sortedForForce.forEach((node, idx) => {
         const angle = (2 * Math.PI * idx) / numNodes;
         const r = 180 + (idx % 4) * 80;
         node.x = cx + r * Math.cos(angle);
@@ -1528,6 +1664,30 @@
           n1.vy += (dy / dist) * f;
           n2.vx -= (dx / dist) * f;
           n2.vy -= (dy / dist) * f;
+        });
+
+        // Intra-SSID clustering attraction to keep clients of each SSID grouped together
+        filteredNodes.forEach((n1, i) => {
+          if (n1.type !== 'client') return;
+          const ssid1 = getClientSsid(n1, null, filteredLinks);
+          if (!ssid1) return;
+          for (let j = i + 1; j < filteredNodes.length; j++) {
+            const n2 = filteredNodes[j];
+            if (n2.type !== 'client') continue;
+            const ssid2 = getClientSsid(n2, null, filteredLinks);
+            if (ssid1 === ssid2) {
+              const dx = n2.x - n1.x;
+              const dy = n2.y - n1.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              if (dist > 95) {
+                const pull = 0.05 * decay;
+                n1.vx += (dx / dist) * pull;
+                n1.vy += (dy / dist) * pull;
+                n2.vx -= (dx / dist) * pull;
+                n2.vy -= (dy / dist) * pull;
+              }
+            }
+          }
         });
 
         filteredNodes.forEach(n => {
@@ -1593,10 +1753,12 @@
           });
 
           if (directClients.length > 0) {
+            const ssids = Array.from(new Set(directClients.map(c => getClientSsid(c, node.id, filteredLinks)).filter(Boolean)));
+            const ssidSubtitle = ssids.length > 0 ? ` · SSIDs: ${ssids.join(', ')}` : '';
             activeGroups.push({
               id: `grp_tree_${node.id}`,
               title: node.name,
-              subtitle: `${directClients.length} clients`,
+              subtitle: `${directClients.length} clients${ssidSubtitle}`,
               x: curX,
               y: levelY - 20,
               width: subtreeWidth,
@@ -2541,6 +2703,13 @@
             <div class="label">Last Location</div>
             <div class="value">${node.last_seen_ip}:${node.last_seen_port}</div>
           </div>
+          ${(node.ssid || getClientSsid(node, null, rawLinks)) ? `
+          <div class="detail-item">
+            <div class="label">Connected SSID</div>
+            <div class="value" style="color: #58a6ff; font-weight: 600;">
+              ${node.ssid || getClientSsid(node, null, rawLinks)}
+            </div>
+          </div>` : ''}
           ${(node.wifi_band || (node.last_seen_port && (node.last_seen_port.includes('2.4') ? '2.4GHz' : node.last_seen_port.includes('5G') ? '5GHz' : ''))) ? `
           <div class="detail-item">
             <div class="label">Wi-Fi Band</div>
@@ -2663,6 +2832,11 @@
         <span class="val">${source.name}</span>
       </div>
       ${link.source_port ? `<div class="row"><span>Port:</span><span class="val">${link.source_port}</span></div>` : ''}
+      ${(link.ssid || (link.source_port && link.source_port.startsWith('SSID:'))) ? `
+        <div class="row" style="color: ${is5G ? '#f778ba' : (is24G ? '#a371f7' : '#58a6ff')}; font-weight: 600;">
+          <span>SSID:</span>
+          <span class="val">${link.ssid || link.source_port.replace(/^SSID:\s*/i, '')}</span>
+        </div>` : ''}
       <div class="row" style="margin-top: 4px;">
         <span>Destination:</span>
         <span class="val">${target.name}</span>

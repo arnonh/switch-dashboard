@@ -841,7 +841,7 @@ async def _async_fetch_omada(base_url: str, username: str, password: str):
 
                         if ssids_dict:
                             # Create an individual port for every SSID, ordered and grouped by name
-                            for ssid_name, s_info in ssids_dict.items():
+                            for ssid_name, s_info in sorted(ssids_dict.items(), key=lambda x: x[0].lower()):
                                 c_list = s_info["clients"]
                                 # Up/down status strictly reflects whether the SSID is enabled, NOT whether clients are connected
                                 is_up = bool(s_info.get("enabled", True)) and ap_radios_enabled

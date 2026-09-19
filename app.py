@@ -2065,11 +2065,20 @@ def api_topology():
             except Exception:
                 pass
 
-        # Resolve Wi-Fi band if applicable
+        # Resolve client SSID and Wi-Fi band if applicable
+        client_ssid = (
+            client_entry.get("ssid", "") or
+            ""
+        )
+        if not client_ssid and str(port).startswith("SSID:"):
+            client_ssid = str(port).replace("SSID:", "").strip()
+
         wifi_band = ""
         try:
             for om_c in omada_integration.get_clients():
                 if normalize_mac(om_c.get("mac", "")) == mac:
+                    if not client_ssid and om_c.get("ssid"):
+                        client_ssid = om_c["ssid"]
                     if om_c.get("wifi_band"):
                         wifi_band = om_c["wifi_band"]
                     elif om_c.get("wireless"):
@@ -2097,17 +2106,20 @@ def api_topology():
         except Exception:
             pass
 
-        if not wifi_band and ip in switches_by_ip:
+        if ip in switches_by_ip:
             for m_entry in switches_by_ip[ip].get("mac_table", []):
                 if normalize_mac(m_entry.get("mac", "")) == mac:
-                    if m_entry.get("wifi_band"):
-                        wifi_band = m_entry["wifi_band"]
-                    elif m_entry.get("wireless"):
-                        rid = m_entry.get("radio_id")
-                        if rid == 0:
-                            wifi_band = "2.4GHz"
-                        elif rid in (1, 2):
-                            wifi_band = "5GHz"
+                    if not client_ssid and m_entry.get("ssid"):
+                        client_ssid = m_entry["ssid"]
+                    if not wifi_band:
+                        if m_entry.get("wifi_band"):
+                            wifi_band = m_entry["wifi_band"]
+                        elif m_entry.get("wireless"):
+                            rid = m_entry.get("radio_id")
+                            if rid == 0:
+                                wifi_band = "2.4GHz"
+                            elif rid in (1, 2):
+                                wifi_band = "5GHz"
                     break
 
         if not wifi_band:
@@ -2136,6 +2148,7 @@ def api_topology():
             "tx_bps": tx_bps,
             "rx_bps": rx_bps,
             "wifi_band": wifi_band,
+            "ssid": client_ssid,
             "activity": c_act
         }
         
@@ -2167,6 +2180,7 @@ def api_topology():
             "tx_bps": tx_bps,
             "rx_bps": rx_bps,
             "wifi_band": wifi_band,
+            "ssid": client_ssid,
             "type": "client"
         })
 
