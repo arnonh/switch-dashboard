@@ -272,6 +272,9 @@
     rx: 4; ry: 4;
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
   }
+  .port-badge-group.wifi-2_4g .port-badge { stroke: rgba(163, 113, 247, 0.7); }
+  .port-badge-group.wifi-5g .port-badge { stroke: rgba(247, 120, 186, 0.7); }
+  .port-badge-group.wifi-6g .port-badge { stroke: rgba(88, 166, 255, 0.7); }
   .port-badge-text {
     font-size: 8.5px;
     fill: #c9d1d9;
@@ -644,6 +647,7 @@
         <g id="groups-group"></g>
         <g id="links-group"></g>
         <g id="nodes-group"></g>
+        <g id="badges-group"></g>
       </g>
     </svg>
   </div>
@@ -1831,6 +1835,8 @@
   function renderLinks(filteredLinks) {
     const container = document.getElementById('links-group');
     container.innerHTML = '';
+    const badgesContainer = document.getElementById('badges-group');
+    if (badgesContainer) badgesContainer.innerHTML = '';
 
     filteredLinks.forEach((link, idx) => {
       const sourceNode = nodes[link.source];
@@ -1846,10 +1852,26 @@
       const midY = (y1 + y2) / 2;
       const pathData = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
 
+      // Determine Wi-Fi frequency band class if applicable
+      let wifiClass = '';
+      const wBand = (link.wifi_band || (targetNode && targetNode.wifi_band) || (sourceNode && sourceNode.wifi_band) || '').toLowerCase();
+      const sPort = (link.source_port || '').toLowerCase();
+      const tPort = (link.target_port || '').toLowerCase();
+
+      if (wBand.includes('2.4') || sPort.includes('2.4g') || sPort.includes('2.4ghz') || tPort.includes('2.4g') || tPort.includes('2.4ghz')) {
+        wifiClass = 'link-wifi-2_4g';
+      } else if (wBand.includes('5') || sPort.includes('5g') || sPort.includes('5ghz') || tPort.includes('5g') || tPort.includes('5ghz')) {
+        wifiClass = 'link-wifi-5g';
+      } else if (wBand.includes('6') || sPort.includes('6g') || sPort.includes('6ghz') || tPort.includes('6g') || tPort.includes('6ghz')) {
+        wifiClass = 'link-wifi-6g';
+      } else if (wBand.includes('wifi') || sPort.includes('wlan') || sPort.includes('wi-fi') || sPort.includes('wifi') || sPort.startsWith('ssid:')) {
+        wifiClass = 'link-wifi';
+      }
+
       const speedClass = `link-${(link.speed || '').toLowerCase().replace('/', '').replace('.', '_')}`;
       
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('class', `link-group ${speedClass}`.trim());
+      g.setAttribute('class', `link-group ${speedClass} ${wifiClass}`.trim());
       g.setAttribute('id', `link-group-${idx}`);
 
       // Transparent thick background path for easier hovering
@@ -1867,22 +1889,16 @@
       marchPath.setAttribute('d', pathData);
       marchPath.setAttribute('class', 'link-marching');
       if (!showMarching) {
-        marchPath.style.display = 'none';
+        if (wifiClass) {
+          marchPath.style.animation = 'none';
+        } else {
+          marchPath.style.display = 'none';
+        }
       }
 
       g.appendChild(bgPath);
       g.appendChild(linePath);
       g.appendChild(marchPath);
-
-      // Render port speed label badge at 25% and 75% along the Bezier curve path
-      if (link.source_port && link.source_port !== 'unknown') {
-        const pt = getBezierPoint(0.25, x1, y1, x2, y2);
-        g.appendChild(createPortBadge(pt.x, pt.y - 8, link.source_port.replace(/^Port\s+/i, 'P'), 'source-badge'));
-      }
-      if (link.target_port && link.target_port !== 'unknown') {
-        const pt = getBezierPoint(0.75, x1, y1, x2, y2);
-        g.appendChild(createPortBadge(pt.x, pt.y + 8, link.target_port.replace(/^Port\s+/i, 'P'), 'target-badge'));
-      }
 
       // Tooltip triggers
       g.addEventListener('mouseenter', (e) => showLinkTooltip(e, link, sourceNode, targetNode));
@@ -1890,7 +1906,52 @@
       g.addEventListener('mousemove', moveLinkTooltip);
 
       container.appendChild(g);
+
+      // Render port badges into dedicated badges-group layer on top of nodes
+      const hasSourceBadge = Boolean(link.source_port && link.source_port !== 'unknown');
+      const hasTargetBadge = Boolean(link.target_port && link.target_port !== 'unknown');
+
+      if (hasSourceBadge || hasTargetBadge) {
+        const { sourcePt, targetPt } = getBadgePoints(sourceNode, targetNode, hasSourceBadge, hasTargetBadge);
+        const targetLayer = badgesContainer || g;
+        const extraWifiClass = wifiClass ? wifiClass.replace('link-', '') : '';
+
+        if (hasSourceBadge && sourcePt) {
+          const sText = link.source_port.replace(/^Port\s+/i, 'P');
+          targetLayer.appendChild(createPortBadge(sourcePt.x, sourcePt.y, sText, `source-badge ${extraWifiClass}`.trim()));
+        }
+        if (hasTargetBadge && targetPt) {
+          const tText = link.target_port.replace(/^Port\s+/i, 'P');
+          targetLayer.appendChild(createPortBadge(targetPt.x, targetPt.y, tText, `target-badge ${extraWifiClass}`.trim()));
+        }
+      }
     });
+  }
+
+  function getNodeBounds(node) {
+    const isClient = node.type === 'client';
+    let sublabelVal = '';
+    if (node.type === 'switch') sublabelVal = node.ip || '';
+    else if (node.type === 'unmanaged_switch') sublabelVal = `Unmanaged (Port ${node.parent_port})`;
+    else if (node.type === 'internet') sublabelVal = 'WAN External';
+    else if (node.type === 'client') sublabelVal = node.ip || node.mac || '';
+    else sublabelVal = node.mac || '';
+    const textLen = Math.max((node.name || '').length, sublabelVal.length);
+    const w = Math.max(isClient ? 150 : 160, textLen * 7.5 + 35);
+    const h = isClient ? 44 : 52;
+    // Breathing room so badges are placed outside the node card boundaries
+    const padX = 14;
+    const padY = 14;
+    return {
+      minX: node.x - w / 2 - padX,
+      maxX: node.x + w / 2 + padX,
+      minY: node.y - h / 2 - padY,
+      maxY: node.y + h / 2 + padY
+    };
+  }
+
+  function isInsideBounds(x, y, bounds) {
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
   }
 
   // Cubic Bezier curve calculator
@@ -1913,10 +1974,67 @@
     return { x, y };
   }
 
+  // Calculate clear-line positions for port badges so they are never obscured by node cards
+  function getBadgePoints(sourceNode, targetNode, hasSourceBadge, hasTargetBadge) {
+    const x1 = sourceNode.x;
+    const y1 = sourceNode.y;
+    const x2 = targetNode.x;
+    const y2 = targetNode.y;
+
+    const sourceBounds = getNodeBounds(sourceNode);
+    const targetBounds = getNodeBounds(targetNode);
+
+    // Find t when line exits sourceNode boundary
+    let tExit = 0.08;
+    for (let t = 0.04; t <= 0.96; t += 0.02) {
+      const pt = getBezierPoint(t, x1, y1, x2, y2);
+      if (!isInsideBounds(pt.x, pt.y, sourceBounds)) {
+        tExit = t;
+        break;
+      }
+    }
+
+    // Find t when line enters targetNode boundary
+    let tEntry = 0.92;
+    for (let t = 0.96; t >= 0.04; t -= 0.02) {
+      const pt = getBezierPoint(t, x1, y1, x2, y2);
+      if (!isInsideBounds(pt.x, pt.y, targetBounds)) {
+        tEntry = t;
+        break;
+      }
+    }
+
+    // Safety fallback if nodes overlap or are extremely close
+    if (tExit >= tEntry) {
+      tExit = 0.25;
+      tEntry = 0.75;
+    }
+
+    let sourcePt = null;
+    let targetPt = null;
+
+    if (hasSourceBadge && hasTargetBadge) {
+      // Both source and target badges exist (e.g. switch-to-switch trunk)
+      const t1 = tExit + (tEntry - tExit) * 0.28;
+      const t2 = tExit + (tEntry - tExit) * 0.72;
+      sourcePt = getBezierPoint(t1, x1, y1, x2, y2);
+      targetPt = getBezierPoint(t2, x1, y1, x2, y2);
+    } else if (hasSourceBadge) {
+      // Single badge (e.g. client link) sits right in the midpoint of the visible line
+      const tMid = tExit + (tEntry - tExit) * 0.5;
+      sourcePt = getBezierPoint(tMid, x1, y1, x2, y2);
+    } else if (hasTargetBadge) {
+      const tMid = tExit + (tEntry - tExit) * 0.5;
+      targetPt = getBezierPoint(tMid, x1, y1, x2, y2);
+    }
+
+    return { sourcePt, targetPt };
+  }
+
   function createPortBadge(x, y, text, extraClass) {
-    const badgeW = Math.max(24, Math.round(text.length * 6.5 + 8));
+    const badgeW = Math.max(26, Math.round(text.length * 6.5 + 10));
     const badge = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    badge.setAttribute('transform', `translate(${x - badgeW / 2}, ${y - 6})`);
+    badge.setAttribute('transform', `translate(${x - badgeW / 2}, ${y - 7})`);
     badge.style.pointerEvents = 'none';
     if (extraClass) {
       badge.setAttribute('class', `port-badge-group ${extraClass}`);
@@ -1926,12 +2044,14 @@
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('width', badgeW);
-    rect.setAttribute('height', '12');
+    rect.setAttribute('height', '14');
+    rect.setAttribute('rx', '4');
+    rect.setAttribute('ry', '4');
     rect.setAttribute('class', 'port-badge');
 
     const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     txt.setAttribute('x', badgeW / 2);
-    txt.setAttribute('y', '6');
+    txt.setAttribute('y', '7');
     txt.setAttribute('class', 'port-badge-text');
     txt.textContent = text;
 
