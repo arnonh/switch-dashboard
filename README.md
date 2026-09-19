@@ -9,9 +9,9 @@ NOTE: This software is created in vibe coding using Antigravity/Gemini
 ![Dashboard](https://raw.githubusercontent.com/byte4geek/switch-dashboard/refs/heads/main/images/dashboard.png)
 
 This dashboarb support these device:
- - [HORACO HC-SWTGW218AS](https://s.click.aliexpress.com/e/_c31NG1u1)
- - [HORACO HC-SWTGW215AS](https://s.click.aliexpress.com/e/_c3hKfeLJ)
- - [keepLink KP9000-9XH-X](https://s.click.aliexpress.com/e/_c4UKLfOv)
+ - [HORACO HC-SWTGW218AS](https://www.byte4geek.com/go/hc-swtgw218as/)
+ - [HORACO HC-SWTGW215AS](https://www.byte4geek.com/go/switch-hc-swtgw215as/)
+ - [keepLink KP9000-9XH-X](https://www.byte4geek.com/go/kp9000-9xh-x/)
 
 This tool support [RTLPlaygroung firmware](https://github.com/logicog/RTLPlayground) too.
 
