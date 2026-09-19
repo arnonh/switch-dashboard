@@ -744,6 +744,22 @@ def update_cache():
                 cur_tx = p.get("tx_bytes", 0)
                 cur_rx = p.get("rx_bytes", 0)
 
+                # Strict Downlink Zero Guard: If a non-uplink port is down and has no bytes,
+                # purge any stale cumulative counters and force all rates/speeds strictly to 0.
+                if not is_uplink and cur_status == "down":
+                    p["speed_tx_bps"] = 0
+                    p["speed_rx_bps"] = 0
+                    p["tx_rate"] = 0
+                    p["rx_rate"] = 0
+                    if cur_tx == 0 and cur_rx == 0:
+                        p["cum_tx"] = 0
+                        p["cum_rx"] = 0
+                        counters[key] = {"tx": 0, "rx": 0, "cum_tx": 0, "cum_rx": 0, "ts": now}
+                        hist_key = (ip, port)
+                        if hist_key in history_live:
+                            history_live[hist_key].clear()
+                        continue
+
                 last = counters.get(key, {"tx": 0, "rx": 0, "cum_tx": 0, "cum_rx": 0, "ts": None})
                 cur_tx = p.get("tx_bytes", 0)
                 cur_rx = p.get("rx_bytes", 0)

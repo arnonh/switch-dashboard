@@ -226,7 +226,11 @@ async def _async_fetch_omada(base_url: str, username: str, password: str):
                     if not c_ap_mac and c_dev_type == "ap" and c_sw_mac:
                         c_ap_mac = c_sw_mac
 
-                    is_wl = getattr(c, "wireless", False)
+                    is_wl = getattr(c, "is_wireless", None)
+                    if is_wl is None:
+                        is_wl = c_raw.get("wireless")
+                    if is_wl is None:
+                        is_wl = bool(getattr(c, "radio_id", None) is not None or c_raw.get("radioId") is not None or c_raw.get("ssid"))
 
                     c_rid = getattr(c, "radio_id", None) if getattr(c, "radio_id", None) is not None else c_raw.get("radioId")
                     c_ch = getattr(c, "channel", None) if getattr(c, "channel", None) is not None else c_raw.get("channel")
