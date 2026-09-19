@@ -639,6 +639,12 @@
                 {% for sw in switches if sw.get('model', '').lower() != 'internet' %}
                 <option value="{{ sw.ip }}" {% if us.parent_ip == sw.ip %}selected{% endif %}>{{ sw.name }} ({{ sw.ip }})</option>
                 {% endfor %}
+                {% if omada_nodes %}
+                {% set sw_ips = switches | map(attribute='ip') | list %}
+                {% for om in omada_nodes if om.get('ip') and om.ip not in sw_ips and om.get('type') == 'switch' %}
+                <option value="{{ om.ip }}" {% if us.parent_ip == om.ip %}selected{% endif %}>{{ om.name }} ({{ om.ip }}) [Omada]</option>
+                {% endfor %}
+                {% endif %}
               </select>
               <input type="number" name="unmanaged_parent_port[]" value="{{ us.parent_port }}" placeholder="Port (e.g. 2)" min="1" max="52" style="flex: 1; min-width: 80px;">
               <button type="button" class="inline-remove-btn" onclick="removeUnmanaged(this)" style="margin-left: auto;">Delete</button>
@@ -650,6 +656,49 @@
       </div>
 
       <div class="card">
+  <h2>Omada Controller Configuration</h2>
+  <div class="yaml-feedback" id="omada-feedback"></div>
+  <div class="form-row">
+    <label>Base URL</label>
+    <input type="text" id="omada-base-url" name="omada_base_url" value="{{ omada.get('base_url', '') if omada else '' }}" placeholder="https://192.168.1.100:8043" />
+  </div>
+  <div class="form-row">
+    <label>Username</label>
+    <input type="text" id="omada-username" name="omada_username" value="{{ omada.get('username', '') if omada else '' }}" placeholder="admin" />
+  </div>
+  <div class="form-row">
+    <label>Password</label>
+    <input type="password" id="omada-password" name="omada_password" value="{{ omada.get('password', '') if omada else '' }}" placeholder="••••••••" />
+  </div>
+  <div class="form-row">
+    <label>Client ID (optional)</label>
+    <input type="text" id="omada-client-id" name="omada_client_id" value="{{ omada.get('client_id', '') if omada else '' }}" />
+  </div>
+  <div class="form-row">
+    <label>Client Secret (optional)</label>
+    <input type="password" id="omada-client-secret" name="omada_client_secret" value="{{ omada.get('client_secret', '') if omada else '' }}" />
+  </div>
+  <div class="form-row">
+    <label>Poll Interval (seconds)</label>
+    <input type="number" id="omada-poll-interval" name="omada_poll_interval" value="{{ omada.get('poll_interval', 300) if omada else 300 }}" min="5" max="3600" />
+  </div>
+  <div class="btn-row">
+    <button type="button" id="omada-save-btn" onclick="saveOmadaConfigAjax()" class="yaml-save-btn">Save Omada Config</button>
+  </div>
+  {% if omada_nodes %}
+  <div style="margin-top: 16px; padding: 12px 14px; background: rgba(56, 139, 253, 0.1); border: 1px solid rgba(56, 139, 253, 0.3); border-radius: 8px;">
+    <div style="font-size: 13px; font-weight: 600; color: #58a6ff; margin-bottom: 6px;">
+      Discovered Omada Nodes ({{ omada_nodes|length }}):
+    </div>
+    <ul style="margin-left: 18px; font-size: 12px; color: #c9d1d9; line-height: 1.6;">
+      {% for node in omada_nodes %}
+      <li><strong>{{ node.name }}</strong> ({{ node.model }}) - IP: <code>{{ node.ip or 'N/A' }}</code> | MAC: <code>{{ node.mac }}</code> [{{ node.type|upper }}]</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+<div class="card">
         <h2>📡 Telemetry Settings</h2>
         <span class="note" style="display:block; margin-bottom: 12px; line-height: 1.5;">
           Help improve this project! Enabling anonymous telemetry is active by default.
@@ -822,6 +871,30 @@
         Upload and Import
       </button>
     </div>
+
+    <!-- CARD: Clear Detected Clients -->
+    <div class="card" id="clear-clients-card" style="margin-top: 20px;">
+      <h2>
+        <span>🗑️ Clear Detected Clients</span>
+        <span class="version-badge" style="background: rgba(248, 81, 73, 0.15); color: #f85149;">Database Action</span>
+      </h2>
+      <div class="yaml-feedback" id="clear-clients-feedback"></div>
+
+      <span class="note" style="display:block; margin-bottom: 12px;">
+        Clear all detected client devices, cached MAC mappings, and discovered hostnames from the database.
+        Connected clients will be automatically re-discovered with fresh data on the next network scrape cycle.
+      </span>
+
+      <div style="display: flex; gap: 12px; align-items: center; margin-top: 15px; flex-wrap: wrap;">
+        <button type="button" class="yaml-save-btn" id="clear-clients-btn" onclick="openClearClientsModal()" style="background: #da3633; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.25); width: auto; margin: 0;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="flex-shrink:0;">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+          Clear All Detected Clients
+        </button>
+        <span id="detected-clients-count" style="font-size: 13px; color: #8b949e;">Currently stored: <strong style="color: #c9d1d9;">{{ client_count }}</strong> client{{ 's' if client_count != 1 else '' }}</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -861,6 +934,106 @@
 </div>
 
 <script>
+// Omada Configuration AJAX Logic
+async function loadOmadaConfigAjax() {
+  try {
+    const res = await fetch('/api/omada/config');
+    if (!res.ok) return;
+    const cfg = await res.json();
+    const urlInput = document.getElementById('omada-base-url');
+    const userInput = document.getElementById('omada-username');
+    const passInput = document.getElementById('omada-password');
+    const cidInput = document.getElementById('omada-client-id');
+    const csecInput = document.getElementById('omada-client-secret');
+    const pollInput = document.getElementById('omada-poll-interval');
+
+    if (urlInput && !urlInput.value && cfg.base_url) urlInput.value = cfg.base_url;
+    if (userInput && !userInput.value && cfg.username) userInput.value = cfg.username;
+    if (passInput && !passInput.value && cfg.password) passInput.value = cfg.password;
+    if (cidInput && !cidInput.value && cfg.client_id) cidInput.value = cfg.client_id;
+    if (csecInput && !csecInput.value && cfg.client_secret) csecInput.value = cfg.client_secret;
+    if (pollInput && (!pollInput.value || pollInput.value === '300') && cfg.poll_interval) pollInput.value = cfg.poll_interval;
+  } catch (e) {
+    console.debug('Omada config not loaded via API:', e);
+  }
+}
+
+async function saveOmadaConfigAjax() {
+  const baseUrl = (document.getElementById('omada-base-url') || {}).value || '';
+  const username = (document.getElementById('omada-username') || {}).value || '';
+  const password = (document.getElementById('omada-password') || {}).value || '';
+  const clientId = (document.getElementById('omada-client-id') || {}).value || '';
+  const clientSecret = (document.getElementById('omada-client-secret') || {}).value || '';
+  const pollInterval = parseInt((document.getElementById('omada-poll-interval') || {}).value) || 300;
+  const feedback = document.getElementById('omada-feedback');
+  const btn = document.getElementById('omada-save-btn');
+
+  if (!baseUrl.trim() || !username.trim() || !password) {
+    if (feedback) {
+      feedback.className = 'yaml-feedback error';
+      feedback.textContent = 'Please provide Base URL, Username, and Password.';
+      feedback.style.display = 'block';
+    } else {
+      alert('Please provide Base URL, Username, and Password.');
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+  }
+  if (feedback) feedback.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/omada/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base_url: baseUrl.trim(),
+        username: username.trim(),
+        password: password,
+        client_id: clientId.trim(),
+        client_secret: clientSecret,
+        poll_interval: pollInterval
+      })
+    });
+    const result = await res.json();
+    if (res.ok && result.success) {
+      if (feedback) {
+        feedback.className = 'yaml-feedback success';
+        feedback.textContent = 'Omada configuration saved successfully! Poller thread restarted.';
+        feedback.style.display = 'block';
+      } else {
+        alert('Omada configuration saved successfully!');
+      }
+    } else {
+      if (feedback) {
+        feedback.className = 'yaml-feedback error';
+        feedback.textContent = 'Failed to save: ' + (result.error || 'Unknown error');
+        feedback.style.display = 'block';
+      } else {
+        alert('Failed to save: ' + (result.error || 'Unknown error'));
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.className = 'yaml-feedback error';
+      feedback.textContent = 'Network error: ' + err.message;
+      feedback.style.display = 'block';
+    } else {
+      alert('Network error: ' + err.message);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Save Omada Config';
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadOmadaConfigAjax);
+
 // CSV Import Logic
 function updateCsvFileName(input) {
   const fileNameSpan = document.getElementById('csv-file-name');

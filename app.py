@@ -7,6 +7,7 @@ from logging.handlers import RotatingFileHandler
 from collections import deque
 from flask import Flask, render_template, jsonify, request, redirect, url_for, Response, send_from_directory
 from datetime import datetime, timezone, timedelta
+import omada_integration
 
 BASE = os.path.dirname(__file__)
 DATA_DIR = os.environ.get("DASHBOARD_DATA_DIR", BASE)
@@ -412,6 +413,9 @@ def get_avg_speed(ip, port, duration):
     key = (ip, port)
     hl = list(history_live.get(key, []))
     if len(hl) < 2:
+        alt_key = (ip, int(port)) if isinstance(port, str) and port.isdigit() else (ip, str(port))
+        hl = list(history_live.get(alt_key, []))
+    if len(hl) < 2:
         return 0, 0
     
     target_ts = time.time() - duration
@@ -715,6 +719,120 @@ def update_cache():
                 }
             speeds[ip] = sw_speeds
 
+        # Incorporate Omada controller nodes
+        omada_nodes = omada_integration.get_omada_nodes()
+        for om in omada_nodes:
+            ip = om.get("ip")
+            if not ip:
+                continue
+
+            # If node already scraped via direct switch scraper, enrich metadata
+            if ip in results and results[ip].get("ports"):
+                results[ip]["source"] = "omada"
+                if om.get("uplink"):
+                    results[ip]["uplink"] = om["uplink"]
+                continue
+
+            results[ip] = dict(om)
+
+            # Accumulate bandwidth counters and calculate speeds for Omada node ports
+            for p in om.get("ports", []):
+                port = p["port"]
+                key = f"{ip}:{port}"
+                is_uplink = p.get("is_uplink", False)
+                cur_status = str(p.get("status", "down")).lower()
+                cur_tx = p.get("tx_bytes", 0)
+                cur_rx = p.get("rx_bytes", 0)
+
+                last = counters.get(key, {"tx": 0, "rx": 0, "cum_tx": 0, "cum_rx": 0, "ts": None})
+                cur_tx = p.get("tx_bytes", 0)
+                cur_rx = p.get("rx_bytes", 0)
+
+                ts_exists = (last.get("ts") is not None)
+                if not ts_exists:
+                    delta_tx = 0
+                    delta_rx = 0
+                else:
+                    if cur_tx >= last["tx"]:
+                        delta_tx = cur_tx - last["tx"]
+                    else:
+                        delta_tx = cur_tx
+                    if cur_rx >= last["rx"]:
+                        delta_rx = cur_rx - last["rx"]
+                    else:
+                        delta_rx = cur_rx
+
+                cum_tx = last["cum_tx"] + delta_tx
+                cum_rx = last["cum_rx"] + delta_rx
+
+                counters[key] = {"tx": cur_tx, "rx": cur_rx,
+                                 "cum_tx": cum_tx, "cum_rx": cum_rx, "ts": now}
+                p["cum_tx"] = cum_tx
+                p["cum_rx"] = cum_rx
+
+                # Speed history (live)
+                hist_key = (ip, port)
+                if hist_key not in history_live:
+                    history_live[hist_key] = deque(maxlen=120)
+                history_live[hist_key].append({
+                    "ts": now, "tx": cum_tx, "rx": cum_rx
+                })
+
+                omada_tx_bps = p.get("speed_tx_bps", 0)
+                omada_rx_bps = p.get("speed_rx_bps", 0)
+
+                h = history_live[hist_key]
+                delta_tx_bps = 0
+                delta_rx_bps = 0
+                if len(h) >= 2:
+                    p1 = h[-2]
+                    p2 = h[-1]
+                    dt = p2["ts"] - p1["ts"]
+                    if dt > 0:
+                        speed_tx = (p2["tx"] - p1["tx"]) * 8 / dt
+                        speed_rx = (p2["rx"] - p1["rx"]) * 8 / dt
+                        delta_tx_bps = max(0, int(speed_tx))
+                        delta_rx_bps = max(0, int(speed_rx))
+
+                if cur_status == "down":
+                    p["speed_tx_bps"] = 0
+                    p["speed_rx_bps"] = 0
+                else:
+                    p["speed_tx_bps"] = omada_tx_bps if omada_tx_bps > 0 else delta_tx_bps
+                    p["speed_rx_bps"] = omada_rx_bps if omada_rx_bps > 0 else delta_rx_bps
+
+                with history_lock:
+                    if hist_key not in history_hourly:
+                        history_hourly[hist_key] = []
+                    points_h = history_hourly[hist_key]
+                    r_interval = config.get("refresh_interval", 30)
+                    max_points = max(1, int(3600 / r_interval))
+                    speed_tx = p.get("speed_tx_bps", 0)
+                    speed_rx = p.get("speed_rx_bps", 0)
+                    points_h.append({"ts": now, "tx": speed_tx, "rx": speed_rx})
+                    while len(points_h) > max_points:
+                        points_h.pop(0)
+                    should_save = True
+
+                    # Daily history (15-minute averages)
+                    if hist_key not in history_daily:
+                        history_daily[hist_key] = []
+                    points_d = history_daily[hist_key]
+                    if len(points_d) == 0 or now - points_d[-1]["ts"] >= 900:
+                        avg_tx, avg_rx = get_avg_speed(ip, port, 900)
+                        points_d.append({"ts": now, "tx": avg_tx, "rx": avg_rx})
+                        if len(points_d) > 96:
+                            points_d.pop(0)
+                        should_save = True
+
+            om_speeds = {}
+            for p in om.get("ports", []):
+                om_speeds[p["port"]] = {
+                    "speed_tx": p.get("speed_tx_bps", 0),
+                    "speed_rx": p.get("speed_rx_bps", 0),
+                }
+            speeds[ip] = om_speeds
+
         # Collect successfully scraped switches and active client MACs
         scraped_switch_ips = set()
         active_clients = {} # mac -> {ip, port, vlan}
@@ -727,6 +845,10 @@ def update_cache():
             sw_mac = sw_data.get("mac", "").replace(":", "").replace("-", "").replace(" ", "").upper()
             if sw_mac:
                 sw_macs.add(sw_mac)
+        for om in omada_nodes:
+            om_mac = om.get("mac", "").replace(":", "").replace("-", "").replace(" ", "").upper()
+            if om_mac:
+                sw_macs.add(om_mac)
         
         infra_macs = set()
         for dev in config.get("infrastructure_devices", []):
@@ -739,19 +861,37 @@ def update_cache():
             sw_data = results.get(sw_ip)
             if sw_data and "error" not in sw_data:
                 scraped_switch_ips.add(sw_ip)
+        for om in omada_nodes:
+            om_ip = om.get("ip")
+            if om_ip and om_ip in results and "error" not in results[om_ip]:
+                scraped_switch_ips.add(om_ip)
 
         # Map ports to learned MACs for all successfully scraped switches
         sw_port_learned_macs = {}
+        learned_ips_by_mac = {}
         for sw_ip in scraped_switch_ips:
             sw_data = results[sw_ip]
             sw_port_learned_macs[sw_ip] = {}
             for entry in sw_data.get("mac_table", []):
                 port = str(entry.get("port", ""))
                 mac = entry.get("mac", "").replace(":", "").replace("-", "").replace(" ", "").upper()
+                c_ip = str(entry.get("ip", "")).strip()
+                if mac and c_ip and c_ip != sw_ip:
+                    learned_ips_by_mac[mac] = c_ip
                 if port and mac:
                     if port not in sw_port_learned_macs[sw_ip]:
                         sw_port_learned_macs[sw_ip][port] = []
                     sw_port_learned_macs[sw_ip][port].append((mac, entry.get("vlan", "")))
+
+        # Also pull client IPs from Omada connected clients
+        try:
+            for om_c in omada_integration.get_clients():
+                om_mac = str(om_c.get("mac", "")).replace(":", "").replace("-", "").replace(" ", "").upper()
+                om_ip = str(om_c.get("ip", "")).strip()
+                if om_mac and om_ip and om_mac not in learned_ips_by_mac:
+                    learned_ips_by_mac[om_mac] = om_ip
+        except Exception:
+            pass
 
         # Build a map of switch IPs to their models
         switch_models = {sw["ip"]: sw.get("model", "") for sw in switch_configs}
@@ -764,6 +904,7 @@ def update_cache():
                     for mac, vlan in mac_vlan_list:
                         if mac not in sw_macs and mac not in infra_macs and not is_ignored_mac(mac):
                             formatted_mac = ":".join(mac[i:i+2] for i in range(0, len(mac), 2)).upper()
+                            c_learned_ip = learned_ips_by_mac.get(mac, "")
                             
                             is_current_fritz = (switch_models.get(sw_ip, "").lower() == "fritzbox")
                             if mac in active_clients:
@@ -774,14 +915,16 @@ def update_cache():
                                         "mac": formatted_mac,
                                         "ip": sw_ip,
                                         "port": port,
-                                        "vlan": str(vlan)
+                                        "vlan": str(vlan),
+                                        "client_ip": c_learned_ip or active_clients[mac].get("client_ip", "")
                                     }
                             else:
                                 active_clients[mac] = {
                                     "mac": formatted_mac,
                                     "ip": sw_ip,
                                     "port": port,
-                                    "vlan": str(vlan)
+                                    "vlan": str(vlan),
+                                    "client_ip": c_learned_ip
                                 }
 
         # Update client database in config
@@ -791,14 +934,18 @@ def update_cache():
             
             # 1. Update/Add online clients
             for mac, info in active_clients.items():
+                c_ip_val = info.get("client_ip") or learned_ips_by_mac.get(mac, "")
                 if mac in db_clients:
-                    db_clients[mac].update({
+                    update_dict = {
                         "ip": info["ip"],
                         "port": info["port"],
                         "vlan": info["vlan"],
                         "status": "online",
                         "last_seen": now
-                    })
+                    }
+                    if c_ip_val:
+                        update_dict["client_ip"] = c_ip_val
+                    db_clients[mac].update(update_dict)
                     if mac in all_vm_mac_maps and not db_clients[mac].get("host"):
                         db_clients[mac]["host"] = all_vm_mac_maps[mac]
                 else:
@@ -806,6 +953,7 @@ def update_cache():
                         "mac": info["mac"],
                         "host": all_vm_mac_maps.get(mac, ""),
                         "ip": info["ip"],
+                        "client_ip": c_ip_val,
                         "port": info["port"],
                         "vlan": info["vlan"],
                         "status": "online",
@@ -940,6 +1088,7 @@ def update_scanner_state_in_config(current_scan_results, ports_to_scan, perform_
                 existing.update({
                     "mac": mac,
                     "scanner_ip": target_ip, # Store the actual scanned IP separately!
+                    "client_ip": target_ip,
                     "vendor": vendor,
                     "scanner_status": "ONLINE",
                     "ports": current_ports,
@@ -958,6 +1107,7 @@ def update_scanner_state_in_config(current_scan_results, ports_to_scan, perform_
                     "host": "",
                     "note": "",
                     "scanner_ip": ip, # Store the actual scanned IP separately!
+                    "client_ip": ip,
                     "ip": "", # Initialize parent switch IP as empty
                     "vendor": vendor,
                     "ports": ports_result_str or "",
@@ -1214,6 +1364,7 @@ load_history()
 start_cache_thread()
 start_scanner_thread()
 start_telemetry_thread()
+omada_integration.start_omada_thread(config)
 
 if not os.path.exists(OUI_TXT_PATH) or not os.path.exists(OUI36_TXT_PATH):
     threading.Thread(target=download_oui_files, daemon=True).start()
@@ -1265,8 +1416,20 @@ def api_switches():
             ip = sw["ip"]
             if ip not in active_ips:
                 active_ips.append(ip)
+
+    omada_nodes = omada_integration.get_omada_nodes()
+    omada_by_ip = {om["ip"]: om for om in omada_nodes if om.get("ip")}
+    for om_ip in omada_by_ip.keys():
+        if om_ip not in active_ips:
+            active_ips.append(om_ip)
+
     with cache_lock:
-        data = [cached_data[ip] for ip in active_ips if ip in cached_data]
+        data = []
+        for ip in active_ips:
+            if ip in cached_data:
+                data.append(dict(cached_data[ip]))
+            elif ip in omada_by_ip:
+                data.append(dict(omada_by_ip[ip]))
     db_clients = config.get("clients", {})
     
     for sw in data:
@@ -1276,6 +1439,8 @@ def api_switches():
             norm_mac = entry.get("mac", "").replace(":", "").replace("-", "").replace(" ", "").upper()
             if norm_mac in db_clients:
                 entry["host"] = db_clients[norm_mac].get("host", "")
+                if not entry.get("ip"):
+                    entry["ip"] = db_clients[norm_mac].get("client_ip") or db_clients[norm_mac].get("scanner_ip") or ""
             else:
                 entry["host"] = ""
         for p in sw.get("ports", []):
@@ -1283,7 +1448,7 @@ def api_switches():
             if custom_note:
                 p["note"] = custom_note
             else:
-                p["note"] = p.get("vm_name") or ""
+                p["note"] = p.get("note") or p.get("vm_name") or ""
     return jsonify(data)
 
 
@@ -1295,6 +1460,11 @@ def refresh_mac(ip):
             sw = s
             break
     if not sw:
+        omada_nodes = omada_integration.get_omada_nodes()
+        om_node = next((n for n in omada_nodes if n.get("ip") == ip), None)
+        if om_node:
+            mac_table = om_node.get("mac_table", [])
+            return jsonify({"status": "ok", "count": len(mac_table), "mac_table": mac_table})
         return jsonify({"error": "Switch not found"}), 404
         
     if sw.get("model", "").lower() == "internet":
@@ -1314,8 +1484,16 @@ def refresh_mac(ip):
 
         vendors = load_mac_vendors()
         ieee_vendors = get_ieee_vendors()
+        db_clients = config.get("clients", {})
         for entry in mac_table:
             entry["vendor"] = lookup_vendor(entry.get("mac"), vendors, ieee_vendors)
+            norm_mac = entry.get("mac", "").replace(":", "").replace("-", "").replace(" ", "").upper()
+            if norm_mac in db_clients:
+                entry["host"] = db_clients[norm_mac].get("host", "")
+                if not entry.get("ip"):
+                    entry["ip"] = db_clients[norm_mac].get("client_ip") or db_clients[norm_mac].get("scanner_ip") or ""
+            else:
+                entry["host"] = ""
 
         with cache_lock:
             if ip in cached_data:
@@ -1426,21 +1604,51 @@ def api_topology():
             "name": sw["name"],
             "model": sw.get("model", ""),
             "mac": sw_mac,
+            "type": "switch",
             "ports": sw_data.get("ports", []),
             "mac_table": sw_data.get("mac_table", []),
             "status": "online" if "error" not in sw_data and sw_data else "offline"
         }
         if sw_mac:
             mac_to_switch_ip[sw_mac] = ip
+
+    omada_nodes = omada_integration.get_omada_nodes()
+    for om in omada_nodes:
+        om_ip = om.get("ip")
+        if not om_ip:
+            continue
+        om_mac = normalize_mac(om.get("mac", ""))
+        om_data = sw_data_copy.get(om_ip, om)
+        if om_ip not in switches_by_ip:
+            switches_by_ip[om_ip] = {
+                "ip": om_ip,
+                "name": om.get("name", "Omada Device"),
+                "model": om.get("model", ""),
+                "mac": om_mac,
+                "type": om.get("type", "switch"),
+                "source": "omada",
+                "ports": om_data.get("ports", []),
+                "mac_table": om_data.get("mac_table", []),
+                "uplink": om.get("uplink"),
+                "status": om_data.get("status", "online")
+            }
+        else:
+            if om_mac and not switches_by_ip[om_ip].get("mac"):
+                switches_by_ip[om_ip]["mac"] = om_mac
+            if om.get("uplink"):
+                switches_by_ip[om_ip]["uplink"] = om.get("uplink")
+            switches_by_ip[om_ip]["source"] = "omada"
+        if om_mac:
+            mac_to_switch_ip[om_mac] = om_ip
             
     # 2. Get infrastructure devices from config
     infra_devices = config.get("infrastructure_devices", [])
     infra_by_mac = {}
     router_mac = None
     
-    # First, let's see if we have a monitored switch that is a router/fritzbox
+    # First, let's see if we have a monitored switch/node that is a router or fritzbox
     for ip, sw in switches_by_ip.items():
-        if sw.get("model", "").lower() == "fritzbox" and sw.get("mac"):
+        if (sw.get("model", "").lower() == "fritzbox" or sw.get("type") == "router") and sw.get("mac"):
             router_mac = sw["mac"]
             break
 
@@ -1552,6 +1760,24 @@ def api_topology():
                 "uplink_port": str(up_port) if up_port else ""
             }
 
+    # Load uplinks reported by Omada devices
+    for om_ip, om_sw in switches_by_ip.items():
+        if om_ip not in static_uplinks and om_sw.get("uplink"):
+            up_mac = normalize_mac(om_sw["uplink"].get("mac", ""))
+            if up_mac in mac_to_switch_ip:
+                parent_ip = mac_to_switch_ip[up_mac]
+                parent_port = str(om_sw["uplink"].get("port") or "")
+                uplink_port = "Uplink"
+                for p in om_sw.get("ports", []):
+                    if p.get("is_uplink"):
+                        uplink_port = str(p.get("port", "Uplink"))
+                        break
+                static_uplinks[om_ip] = {
+                    "parent_ip": parent_ip,
+                    "parent_port": parent_port,
+                    "uplink_port": uplink_port
+                }
+
     # Bidirectional links
     processed_links = set()
     links = []
@@ -1572,7 +1798,11 @@ def api_topology():
         if p_ip in switches_by_ip:
             parent_ports_info = switches_by_ip[p_ip]["ports"]
             for p_info in parent_ports_info:
-                if str(p_info.get("port")).lower() == p_port.lower() or str(p_info.get("port")).lower() == f"port {p_port}".lower():
+                p_val = str(p_info.get("port", "")).lower()
+                req_val = str(p_port).lower()
+                if (p_val == req_val or p_val == f"port {req_val}" or
+                    p_val.replace("eth", "") == req_val.replace("eth", "") or
+                    p_val.replace("port ", "") == req_val.replace("port ", "")):
                     speed = p_info.get("speed", "Unknown")
                     tx_bps = p_info.get("speed_tx_bps", 0)
                     rx_bps = p_info.get("speed_rx_bps", 0)
@@ -1580,14 +1810,18 @@ def api_topology():
         elif child_ip in switches_by_ip:
             child_ports_info = switches_by_ip[child_ip]["ports"]
             for p_info in child_ports_info:
-                if up_port and (str(p_info.get("port")).lower() == up_port.lower() or str(p_info.get("port")).lower() == f"port {up_port}".lower()):
+                p_val = str(p_info.get("port", "")).lower()
+                req_val = str(up_port).lower()
+                if req_val and (p_val == req_val or p_val == f"port {req_val}" or
+                                p_val.replace("eth", "") == req_val.replace("eth", "") or
+                                p_val.replace("port ", "") == req_val.replace("port ", "")):
                     speed = p_info.get("speed", "Unknown")
                     tx_bps = p_info.get("speed_tx_bps", 0)
                     rx_bps = p_info.get("speed_rx_bps", 0)
                     break
                     
-        source_port_label = p_port if ("lan" in p_port.lower() or "wan" in p_port.lower() or "port" in p_port.lower()) else f"Port {p_port}"
-        target_port_label = up_port if ("port" in up_port.lower() or "wan" in up_port.lower() or "lan" in up_port.lower() or not up_port) else f"Port {up_port}"
+        source_port_label = (p_port if any(k in p_port.lower() for k in ("lan", "wan", "port", "uplink", "eth")) else f"Port {p_port}") if p_port else ""
+        target_port_label = (up_port if any(k in up_port.lower() for k in ("lan", "wan", "port", "uplink", "eth")) else f"Port {up_port}") if up_port else "unknown"
         if not target_port_label:
             target_port_label = "unknown"
             
@@ -1661,11 +1895,16 @@ def api_topology():
     for mac, conn in infra_connections.items():
         ip, port = conn
         speed = "Unknown"
-        src_ports_info = switches_by_ip[ip]["ports"]
-        for p_info in src_ports_info:
-            if str(p_info.get("port")) == str(port):
-                speed = p_info.get("speed", "Unknown")
-                break
+        tx_bps = 0
+        rx_bps = 0
+        if ip in switches_by_ip:
+            src_ports_info = switches_by_ip[ip].get("ports", [])
+            for p_info in src_ports_info:
+                if str(p_info.get("port")) == str(port):
+                    speed = p_info.get("speed", "Unknown")
+                    tx_bps = p_info.get("speed_tx_bps", 0)
+                    rx_bps = p_info.get("speed_rx_bps", 0)
+                    break
                 
         if (ip, str(port)) in unmanaged_by_port:
             source_id = unmanaged_by_port[(ip, str(port))]["id"]
@@ -1680,6 +1919,8 @@ def api_topology():
             "source_port": source_port,
             "target_port": "",
             "speed": speed,
+            "tx_bps": tx_bps,
+            "rx_bps": rx_bps,
             "type": "infra"
         })
 
@@ -1749,10 +1990,98 @@ def api_topology():
             formatted_mac = ":".join(mac[i:i+2] for i in range(0, len(mac), 2)).upper()
             
         display_name = host_name if host_name else (vendor if vendor else f"Client {formatted_mac[-8:]}")
-        
+
+        speed = ""
+        tx_bps = 0
+        rx_bps = 0
+        c_act = 0
+        if is_active and ip in switches_by_ip:
+            src_ports_info = switches_by_ip[ip].get("ports", [])
+            for p_info in src_ports_info:
+                p_val = str(p_info.get("port", "")).lower()
+                c_val = str(port).lower()
+                if (p_val == c_val or p_val == f"port {c_val}" or
+                    p_val.replace("eth", "") == c_val.replace("eth", "") or
+                    p_val.replace("port ", "") == c_val.replace("port ", "")):
+                    speed = p_info.get("speed", "Unknown")
+                    tx_bps = p_info.get("speed_tx_bps", 0)
+                    rx_bps = p_info.get("speed_rx_bps", 0)
+                    break
+
+            # If client has individual throughput stats in mac_table (e.g. from Omada)
+            for m_entry in switches_by_ip.get(ip, {}).get("mac_table", []):
+                if normalize_mac(m_entry.get("mac", "")) == mac:
+                    c_act = m_entry.get("activity", 0)
+                    c_tx = m_entry.get("speed_tx_bps", 0)
+                    c_rx = m_entry.get("speed_rx_bps", 0)
+                    if c_tx > 0:
+                        tx_bps = c_tx
+                    if c_rx > 0:
+                        rx_bps = c_rx
+                    elif c_act > 0 and c_rx == 0:
+                        rx_bps = int(c_act * 8)
+                    break
+        elif not is_active:
+            speed = "offline"
+
+        # Resolve Wi-Fi band if applicable
+        wifi_band = ""
+        try:
+            for om_c in omada_integration.get_clients():
+                if normalize_mac(om_c.get("mac", "")) == mac:
+                    if om_c.get("wifi_band"):
+                        wifi_band = om_c["wifi_band"]
+                    elif om_c.get("wireless"):
+                        rid = om_c.get("radio_id")
+                        if rid == 0:
+                            wifi_band = "2.4GHz"
+                        elif rid in (1, 2):
+                            wifi_band = "5GHz"
+                        elif rid == 3:
+                            wifi_band = "6GHz"
+                        else:
+                            ch = om_c.get("channel")
+                            if ch:
+                                try:
+                                    ch_num = int(ch)
+                                    if 1 <= ch_num <= 14:
+                                        wifi_band = "2.4GHz"
+                                    elif 36 <= ch_num <= 177:
+                                        wifi_band = "5GHz"
+                                    elif ch_num >= 180:
+                                        wifi_band = "6GHz"
+                                except (ValueError, TypeError):
+                                    pass
+                    break
+        except Exception:
+            pass
+
+        if not wifi_band and ip in switches_by_ip:
+            for m_entry in switches_by_ip[ip].get("mac_table", []):
+                if normalize_mac(m_entry.get("mac", "")) == mac:
+                    if m_entry.get("wifi_band"):
+                        wifi_band = m_entry["wifi_band"]
+                    elif m_entry.get("wireless"):
+                        rid = m_entry.get("radio_id")
+                        if rid == 0:
+                            wifi_band = "2.4GHz"
+                        elif rid in (1, 2):
+                            wifi_band = "5GHz"
+                    break
+
+        if not wifi_band:
+            p_upper = str(port).upper()
+            if "2.4G" in p_upper or "2.4GHZ" in p_upper:
+                wifi_band = "2.4GHz"
+            elif "5G" in p_upper or "5GHZ" in p_upper:
+                wifi_band = "5GHz"
+            elif "6G" in p_upper or "6GHZ" in p_upper:
+                wifi_band = "6GHz"
+
         clients[mac] = {
             "id": mac,
             "name": display_name,
+            "ip": "",
             "mac": formatted_mac,
             "host": host_name,
             "type": "client",
@@ -1761,7 +2090,12 @@ def api_topology():
             "status": status,
             "last_seen_ip": ip,
             "last_seen_port": port,
-            "last_seen_time": client_entry.get("last_seen", 0)
+            "last_seen_time": client_entry.get("last_seen", 0),
+            "speed": speed,
+            "tx_bps": tx_bps,
+            "rx_bps": rx_bps,
+            "wifi_band": wifi_band,
+            "activity": c_act
         }
         
         target_node = mac
@@ -1773,17 +2107,15 @@ def api_topology():
             source_port = ""
         else:
             source_node = ip
-            source_port = f"Port {port}"
-            
-        speed = ""
-        if not attached_infra and is_active:
-            src_ports_info = switches_by_ip[ip]["ports"]
-            for p_info in src_ports_info:
-                if str(p_info.get("port")) == str(port):
-                    speed = p_info.get("speed", "Unknown")
-                    break
-        elif not attached_infra and not is_active:
-            speed = "offline"
+            p_str = str(port).strip()
+            if p_str.startswith("SSID:"):
+                source_port = p_str
+            elif p_str.endswith("G") or p_str == "WLAN":
+                source_port = f"{p_str} Wi-Fi"
+            elif p_str.upper().startswith("ETH") or p_str.upper() in ("UPLINK", "WAN", "LAN"):
+                source_port = p_str
+            else:
+                source_port = f"Port {p_str}"
             
         client_links.append({
             "source": source_node,
@@ -1791,6 +2123,9 @@ def api_topology():
             "source_port": source_port,
             "target_port": "",
             "speed": speed,
+            "tx_bps": tx_bps,
+            "rx_bps": rx_bps,
+            "wifi_band": wifi_band,
             "type": "client"
         })
 
@@ -1818,54 +2153,54 @@ def api_topology():
                 has_link_to_internet = True
                 break
         if not has_link_to_internet:
-            # Fallback auto-link: find fritzbox and link it to WAN
-            fritzbox_ip = None
-            fritzbox_wan_speed = "1G/300M"
+            # Fallback auto-link: find router or fritzbox and link it to WAN
+            router_ip = None
+            router_wan_speed = "1G/300M"
             for ip, sw in switches_by_ip.items():
-                if sw.get("model", "").lower() == "fritzbox":
-                    fritzbox_ip = ip
+                if sw.get("model", "").lower() == "fritzbox" or sw.get("type") == "router":
+                    router_ip = ip
                     for p_info in sw.get("ports", []):
-                        if str(p_info.get("port")).lower() == "wan":
-                            fritzbox_wan_speed = p_info.get("speed", "1G/300M")
+                        if str(p_info.get("port")).lower() in ["wan", "1"]:
+                            router_wan_speed = p_info.get("speed", "1G/300M")
                             break
                     break
-            if fritzbox_ip:
+            if router_ip:
                 links.append({
                     "source": "internet",
-                    "target": fritzbox_ip,
+                    "target": router_ip,
                     "source_port": "",
                     "target_port": "WAN",
-                    "speed": fritzbox_wan_speed,
+                    "speed": router_wan_speed,
                     "type": "internet"
                 })
     else:
-        # Add Internet (ONT) virtual node if Fritz!Box is configured
-        fritzbox_ip = None
-        fritzbox_online = False
-        fritzbox_wan_speed = "1G/300M"
+        # Add Internet (ONT) virtual node if Fritz!Box or Router is configured
+        router_ip = None
+        router_online = False
+        router_wan_speed = "1G/300M"
         for ip, sw in switches_by_ip.items():
-            if sw.get("model", "").lower() == "fritzbox":
-                fritzbox_ip = ip
-                fritzbox_online = (sw.get("status") == "online")
+            if sw.get("model", "").lower() == "fritzbox" or sw.get("type") == "router":
+                router_ip = ip
+                router_online = (sw.get("status") == "online")
                 for p_info in sw.get("ports", []):
-                    if str(p_info.get("port")).lower() == "wan":
-                        fritzbox_wan_speed = p_info.get("speed", "1G/300M")
+                    if str(p_info.get("port")).lower() in ["wan", "1"]:
+                        router_wan_speed = p_info.get("speed", "1G/300M")
                         break
                 break
 
-        if fritzbox_ip:
+        if router_ip:
             nodes.append({
                 "id": "internet",
                 "name": "Internet (ONT)",
                 "type": "internet",
-                "status": "online" if fritzbox_online else "offline"
+                "status": "online" if router_online else "offline"
             })
             links.append({
                 "source": "internet",
-                "target": fritzbox_ip,
+                "target": router_ip,
                 "source_port": "",
                 "target_port": "WAN",
-                "speed": fritzbox_wan_speed,
+                "speed": router_wan_speed,
                 "type": "internet"
             })
 
@@ -1876,7 +2211,7 @@ def api_topology():
         nodes.append({
             "id": ip,
             "name": sw["name"],
-            "type": "switch",
+            "type": sw.get("type", "switch"),
             "ip": ip,
             "mac": sw["mac"],
             "model": sw["model"],
@@ -1936,10 +2271,12 @@ def api_topology():
             "name": dev["name"],
             "type": "client",
             "device_type": dev.get("device_type", "laptop"),
+            "ip": dev.get("ip", ""),
             "mac": dev["mac"],
             "vendor": dev["vendor"],
             "status": dev["status"],
             "host": dev["host"],
+            "wifi_band": dev.get("wifi_band", ""),
             "last_seen_ip": dev["last_seen_ip"],
             "last_seen_port": dev["last_seen_port"],
             "last_seen_time": dev["last_seen_time"]
@@ -1978,13 +2315,14 @@ def api_history():
         return jsonify({"error": "Missing ip or port"}), 400
         
     key = (ip, port)
+    alt_key = (ip, int(port)) if isinstance(port, str) and port.isdigit() else (ip, str(port))
     tx = []
     rx = []
     timestamps = []
     
     with history_lock:
         if range_type == "live":
-            hl = list(history_live.get(key, []))
+            hl = list(history_live.get(key) or history_live.get(alt_key) or [])
             for i in range(1, len(hl)):
                 dt = hl[i]["ts"] - hl[i-1]["ts"]
                 if dt > 0:
@@ -1996,13 +2334,13 @@ def api_history():
                     rx.append(int(rx_diff * 8 / dt))
                     timestamps.append(hl[i]["ts"])
         elif range_type == "1h":
-            points = history_hourly.get(key, [])
+            points = history_hourly.get(key) or history_hourly.get(alt_key) or []
             for p in points:
                 tx.append(p["tx"])
                 rx.append(p["rx"])
                 timestamps.append(p["ts"])
         elif range_type == "24h":
-            points = history_daily.get(key, [])
+            points = history_daily.get(key) or history_daily.get(alt_key) or []
             for p in points:
                 tx.append(p["tx"])
                 rx.append(p["rx"])
@@ -2223,7 +2561,32 @@ def config_page():
         config["scanner_port_scan_timeout_ms"] = int(request.form.get("scanner_port_scan_timeout_ms", 500))
         config["telemetry_enabled"] = request.form.get("telemetry_enabled") == "true"
 
-        
+        # Omada configuration from form submission
+        om_base = request.form.get("omada_base_url", "").strip()
+        om_user = request.form.get("omada_username", "").strip()
+        om_pass = request.form.get("omada_password", "").strip()
+        om_cid = request.form.get("omada_client_id", "").strip()
+        om_csec = request.form.get("omada_client_secret", "").strip()
+        om_poll = request.form.get("omada_poll_interval", "").strip()
+
+        if om_base or om_user or om_pass:
+            config.setdefault("omada", {})
+            if om_base:
+                config["omada"]["base_url"] = om_base
+            if om_user:
+                config["omada"]["username"] = om_user
+            if om_pass:
+                config["omada"]["password"] = om_pass
+            config["omada"]["client_id"] = om_cid
+            if om_csec:
+                config["omada"]["client_secret"] = om_csec
+            if om_poll:
+                try:
+                    config["omada"]["poll_interval"] = int(om_poll)
+                except ValueError:
+                    pass
+            omada_integration.restart_omada_thread(config)
+
         if "settings" not in config:
             config["settings"] = {}
         config["settings"]["ignored_macs"] = ignored_macs_list
@@ -2271,7 +2634,10 @@ def config_page():
                            scanner_host_scan_threads=config.get("scanner_host_scan_threads", 4),
                            scanner_port_scan_timeout_ms=config.get("scanner_port_scan_timeout_ms", 500),
                            version=VERSION,
-                           telemetry_enabled=config.get("telemetry_enabled", True))
+                           telemetry_enabled=config.get("telemetry_enabled", True),
+                           omada=config.get("omada", {}),
+                           omada_nodes=omada_integration.get_omada_nodes(),
+                           client_count=len(config.get("clients", {})))
 
 
 @app.route("/api/settings", methods=["GET", "POST"])
@@ -2409,6 +2775,38 @@ def api_clients_delete():
         save_config()
         
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/clients/clear", methods=["POST"])
+def api_clients_clear():
+    data = request.get_json(force=True, silent=True) or {}
+    with config_lock:
+        load_config()
+        db_clients = config.get("clients", {})
+        count = len(db_clients)
+        
+        # Clear all detected clients
+        config["clients"] = {}
+        
+        # Clean up client positions in map_positions
+        map_positions = config.get("map_positions", {})
+        if map_positions and db_clients:
+            client_keys = set(db_clients.keys())
+            for k in list(map_positions.keys()):
+                norm_k = k.replace(":", "").replace("-", "").replace(" ", "").upper()
+                if norm_k in client_keys:
+                    del map_positions[k]
+            config["map_positions"] = map_positions
+            
+        if data.get("clear_scanner_history"):
+            try:
+                scanner_db.delete_all_history()
+            except Exception as e:
+                logger.warning(f"Failed to clear scanner history: {e}")
+                
+        save_config()
+        logger.info(f"Cleared {count} detected clients from database.")
+        return jsonify({"status": "ok", "cleared_count": count})
 
 
 @app.route("/api/clients/import_csv", methods=["POST"])
@@ -2906,9 +3304,9 @@ def find_client_by_ip(ip_address):
         if mac_clean in db_clients:
             return mac_clean, db_clients[mac_clean]
 
-    # 2. Check for exact match on scanner_ip
+    # 2. Check for exact match on client_ip or scanner_ip
     for mac_clean, c in db_clients.items():
-        if c.get("scanner_ip") == ip_address:
+        if c.get("client_ip") == ip_address or c.get("scanner_ip") == ip_address:
             return mac_clean, c
 
     # 3. Fallback to matching c.get("ip")
@@ -2928,7 +3326,7 @@ def api_scanner_hosts():
         if not c.get("scanner_detected"):
             continue
         hosts_list.append({
-            "ip_address": c.get("scanner_ip", ""),
+            "ip_address": c.get("scanner_ip", "") or c.get("client_ip", ""),
             "mac_address": c.get("mac", ""),
             "vendor": c.get("vendor", ""),
             "hostname": c.get("host", ""),
@@ -3067,6 +3465,48 @@ def api_scanner_clear_all_history():
     load_config()
     scanner_db.delete_all_history()
     return jsonify({"success": True})
+# Omada controller configuration API
+@app.route("/api/omada/config", methods=["GET"])
+def api_get_omada_config():
+    """Return current Omada controller configuration."""
+    load_config()
+    omada_cfg = config.get("omada", {})
+    return jsonify(omada_cfg)
+
+@app.route("/api/omada/config", methods=["POST"])
+def api_update_omada_config():
+    """Update Omada configuration, persist, and restart polling thread."""
+    load_config()
+    data = request.get_json(silent=True) or {}
+
+    with config_lock:
+        existing = config.get("omada", {})
+        base_url = (data.get("base_url") or existing.get("base_url") or "").strip()
+        username = (data.get("username") or existing.get("username") or "").strip()
+        password = data.get("password") or existing.get("password") or ""
+
+        if not base_url or not username or not password:
+            return jsonify({"error": "Base URL, Username, and Password are required"}), 400
+
+        config.setdefault("omada", {})
+        config["omada"]["base_url"] = base_url
+        config["omada"]["username"] = username
+        config["omada"]["password"] = password
+        if "client_id" in data:
+            config["omada"]["client_id"] = data.get("client_id", "").strip()
+        if "client_secret" in data and data.get("client_secret"):
+            config["omada"]["client_secret"] = data.get("client_secret", "")
+        if "poll_interval" in data and data.get("poll_interval"):
+            try:
+                config["omada"]["poll_interval"] = int(data.get("poll_interval"))
+            except ValueError:
+                pass
+        save_config()
+
+    # Restart the Omada polling thread with new config
+    omada_integration.restart_omada_thread(config)
+    return jsonify({"success": True})
+
 
 
 if __name__ == "__main__":
