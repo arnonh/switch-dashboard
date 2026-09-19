@@ -195,26 +195,90 @@
   .link-100m .link-line, .link-10m .link-line { stroke: #f08a24; }
   .link-100m .link-marching, .link-10m .link-marching { stroke: #f1aa5a; }
 
+  /* Wi-Fi & Wireless links - Invisible solid line, only marching dashes */
+  .link-group.link-wifi-2_4g .link-line,
+  .link-group.link-2_4ghz .link-line,
+  .link-group.link-2_4g .link-line,
+  .link-group.link-wifi-5g .link-line,
+  .link-group.link-5ghz .link-line,
+  .link-group.link-5g .link-line,
+  .link-group.link-wifi-6g .link-line,
+  .link-group.link-6ghz .link-line,
+  .link-group.link-6g .link-line,
+  .link-group.link-wifi .link-line,
+  .link-group.link-wlan .link-line {
+    display: none !important;
+  }
 
-  .link-down .link-line, .link-unknown .link-line { stroke: #484f58; stroke-dasharray: 4, 4; }
-  .link-down .link-marching, .link-unknown .link-marching { display: none; }
+  .link-group.link-wifi-2_4g .link-marching,
+  .link-group.link-2_4ghz .link-marching,
+  .link-group.link-2_4g .link-marching {
+    stroke: #a371f7;
+    stroke-width: 2.2;
+    stroke-dasharray: 6, 6;
+    opacity: 1;
+  }
+
+  .link-group.link-wifi-5g .link-marching,
+  .link-group.link-5ghz .link-marching,
+  .link-group.link-5g .link-marching {
+    stroke: #f778ba;
+    stroke-width: 2.2;
+    stroke-dasharray: 6, 6;
+    opacity: 1;
+  }
+
+  .link-group.link-wifi-6g .link-marching,
+  .link-group.link-6ghz .link-marching,
+  .link-group.link-6g .link-marching {
+    stroke: #79c0ff;
+    stroke-width: 2.2;
+    stroke-dasharray: 6, 6;
+    opacity: 1;
+  }
+
+  .link-group.link-wifi .link-marching,
+  .link-group.link-wlan .link-marching {
+    stroke: #a371f7;
+    stroke-width: 2.2;
+    stroke-dasharray: 6, 6;
+    opacity: 1;
+  }
+
+  .link-group.link-wifi-2_4g:hover .link-marching,
+  .link-group.link-wifi-5g:hover .link-marching,
+  .link-group.link-wifi-6g:hover .link-marching,
+  .link-group.link-wifi:hover .link-marching {
+    stroke-width: 3.8;
+  }
+
+  .link-group.link-down .link-line, .link-group.link-unknown .link-line, .link-group.link-offline .link-line {
+    display: block !important;
+    stroke: #484f58;
+    stroke-dasharray: 4, 4;
+  }
+  .link-group.link-down .link-marching, .link-group.link-unknown .link-marching, .link-group.link-offline .link-marching {
+    display: none !important;
+  }
 
   .link-group:hover .link-line {
     stroke-width: 4.5;
   }
 
   .port-badge {
-    fill: #161b22;
-    stroke: #30363d;
+    fill: rgba(13, 17, 23, 0.95);
+    stroke: #38414e;
     stroke-width: 1;
     rx: 4; ry: 4;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
   }
   .port-badge-text {
-    font-size: 8px;
-    fill: #8b949e;
+    font-size: 8.5px;
+    fill: #c9d1d9;
+    font-weight: 600;
     font-family: 'SF Mono', Monaco, monospace;
     text-anchor: middle;
-    alignment-baseline: middle;
+    dominant-baseline: central;
   }
 
   /* Floating UI Panels */
@@ -353,6 +417,73 @@
     transition: all 0.2s;
   }
   .map-btn:hover { background: #30363d; color: #fff; border-color: #8b949e; }
+  .map-btn.active {
+    background: rgba(56, 139, 253, 0.25);
+    border-color: #58a6ff;
+    color: #58a6ff;
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.4);
+  }
+  .map-btn.active-danger {
+    background: rgba(248, 81, 73, 0.25);
+    border-color: #f85149;
+    color: #f85149;
+    box-shadow: 0 0 10px rgba(248, 81, 73, 0.4);
+  }
+
+  .layout-toast {
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(22, 27, 34, 0.95);
+    border: 1px solid #388bfd;
+    box-shadow: 0 4px 20px rgba(56, 139, 253, 0.35);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    color: #f0f6fc;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  @keyframes toastFade {
+    0% { opacity: 0; transform: translate(-50%, -10px); }
+    15% { opacity: 1; transform: translate(-50%, 0); }
+    80% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -10px); }
+  }
+
+  /* Group Boundary Boxes & Swimlanes */
+  .group-box {
+    fill: rgba(22, 27, 34, 0.45);
+    stroke: rgba(56, 139, 253, 0.28);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    rx: 14; ry: 14;
+    pointer-events: none;
+    transition: all 0.3s ease;
+  }
+  .group-box-label {
+    font-size: 11px;
+    font-weight: 700;
+    fill: #58a6ff;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+  }
+  .group-box-sublabel {
+    font-size: 9px;
+    font-weight: 500;
+    fill: #8b949e;
+    pointer-events: none;
+    user-select: none;
+    font-family: 'SF Mono', Monaco, monospace;
+  }
   
   /* Pulse highlights on search find */
   @keyframes highlight-pulse {
@@ -481,6 +612,8 @@
     <div class="legend-item"><span class="legend-color" style="background: #58a6ff;"></span> 2.5G</div>
     <div class="legend-item"><span class="legend-color" style="background: #3fb950;"></span> 1G</div>
     <div class="legend-item"><span class="legend-color" style="background: #f08a24;"></span> 100M</div>
+    <div class="legend-item"><span class="legend-color" style="background: repeating-linear-gradient(90deg, #a371f7, #a371f7 3px, transparent 3px, transparent 6px);"></span> 2.4 GHz</div>
+    <div class="legend-item"><span class="legend-color" style="background: repeating-linear-gradient(90deg, #f778ba, #f778ba 3px, transparent 3px, transparent 6px);"></span> 5 GHz</div>
   </div>
 
   <!-- Zoom & Center Controls -->
@@ -488,6 +621,16 @@
     <button class="map-btn" onclick="zoom(1.2)" title="Zoom In">+</button>
     <button class="map-btn" onclick="zoom(0.8)" title="Zoom Out">-</button>
     <button class="map-btn" onclick="resetZoom()" title="Recenter Map">&#8982;</button>
+    <button class="map-btn" id="btn-drop-offline" onclick="toggleDropOffline()" title="Drop All Offline Devices">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/>
+      </svg>
+    </button>
+    <button class="map-btn" id="btn-cycle-layout" onclick="cycleLayout()" title="Organize Map (Cycle Layout: Vertical, Horizontal, Radial, Grid, Force)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+      </svg>
+    </button>
   </div>
 
   <!-- Canvas Container -->
@@ -498,6 +641,7 @@
       </defs>
       <!-- Viewport group that is zoomed/panned -->
       <g id="viewport" transform="translate(0,0) scale(1)">
+        <g id="groups-group"></g>
         <g id="links-group"></g>
         <g id="nodes-group"></g>
       </g>
@@ -530,15 +674,49 @@
           </label>
         </div>
         <div class="control-row">
+          <span>Drop Offline Devices</span>
+          <label class="switch-toggle">
+            <input type="checkbox" id="toggle-drop-offline" onchange="toggleDropOffline(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-row">
           <span>Active Marching Lines</span>
           <label class="switch-toggle">
             <input type="checkbox" id="toggle-marching" checked onchange="handleMarchingToggle()">
             <span class="slider"></span>
           </label>
         </div>
-        <div class="control-row" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(48, 54, 61, 0.4);">
-          <button type="button" class="map-btn" onclick="resetLayout()" style="width: 100%; height: auto; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600;">
-            🔄 Reset Layout
+        <div class="control-row">
+          <span>Show Group Outlines</span>
+          <label class="switch-toggle">
+            <input type="checkbox" id="toggle-group-boxes" checked onchange="handleGroupBoxToggle(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-row" style="flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(48, 54, 61, 0.4);">
+          <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+            <span style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Layout Algorithm</span>
+            <span id="current-layout-index" style="font-size: 10px; color: #58a6ff; font-family: 'SF Mono', monospace;">1/7</span>
+          </div>
+          <select id="layout-select" onchange="selectLayout(this.value)" style="width: 100%; background: #21262d; border: 1px solid #30363d; color: #f0f6fc; border-radius: 6px; padding: 7px 10px; font-size: 12px; outline: none; cursor: pointer;">
+            <option value="tree_vertical">🌲 Vertical Hierarchy</option>
+            <option value="switch_pods">🏝️ Switch Pods (Grouped by Switch)</option>
+            <option value="type_columns">🏛️ Category Columns (Grouped by Type)</option>
+            <option value="tree_horizontal">🌿 Horizontal Flow</option>
+            <option value="grid_tiered">🏢 Tiered Grid (Grouped Layers)</option>
+            <option value="radial_sectored">🎯 Concentric Radial (Sectored)</option>
+            <option value="force_clustered">⚛️ Organic Physics (Clustered)</option>
+          </select>
+        </div>
+        <div class="control-row" style="margin-top: 10px;">
+          <button type="button" class="map-btn" id="btn-cycle-layout-sidebar" onclick="cycleLayout()" style="width: 100%; height: auto; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600;">
+            📐 Cycle Layout: <span id="current-layout-label">Vertical Hierarchy</span> ⟳
+          </button>
+        </div>
+        <div class="control-row" style="margin-top: 8px;">
+          <button type="button" class="map-btn" onclick="resetLayout()" style="width: 100%; height: auto; padding: 7px 12px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; color: #8b949e;">
+            🔄 Clear Saved Positions
           </button>
         </div>
       </div>
@@ -569,6 +747,23 @@
   
   let showClients = true;
   let showMarching = true;
+  let dropOffline = false;
+
+  let activeGroups = [];
+  let showGroupBoxes = true;
+
+  // Available Layout Modes for cycling and direct selection
+  const LAYOUT_MODES = [
+    { id: 'tree_vertical', name: 'Vertical Hierarchy', icon: '🌲' },
+    { id: 'switch_pods', name: 'Switch Islands (Grouped by Switch)', icon: '🏝️' },
+    { id: 'type_columns', name: 'Category Columns (Grouped by Type)', icon: '🏛️' },
+    { id: 'tree_horizontal', name: 'Horizontal Flow', icon: '🌿' },
+    { id: 'grid_tiered', name: 'Tiered Grid (Grouped Layers)', icon: '🏢' },
+    { id: 'radial_sectored', name: 'Concentric Radial (Sectored)', icon: '🎯' },
+    { id: 'force_clustered', name: 'Organic Physics (Clustered)', icon: '⚛️' }
+  ];
+  let currentLayoutIndex = 0;
+  let toastTimeout = null;
   
   // Drag state
   let selectedNode = null;
@@ -725,10 +920,123 @@
     }
   }
 
-  // Auto-Layout: compute levels using BFS starting from the Router/first node
-  function computeLayout(filteredNodes, filteredLinks) {
+  // ==========================================
+  // NODE DIMENSIONS & OVERLAP RESOLVER
+  // ==========================================
+  function getNodeDimensions(node) {
+    const isClient = node.type === 'client';
+    let sublabelVal = '';
+    if (node.type === 'switch') sublabelVal = node.ip || '';
+    else if (node.type === 'unmanaged_switch') sublabelVal = `Unmanaged (Port ${node.parent_port})`;
+    else if (node.type === 'internet') sublabelVal = 'WAN External';
+    else if (node.type === 'client') sublabelVal = node.ip || node.mac || '';
+    else sublabelVal = node.mac || '';
+    const textLen = Math.max((node.name || '').length, sublabelVal.length);
+    const w = Math.max(isClient ? 155 : 165, textLen * 7.5 + 35);
+    const h = isClient ? 46 : 54;
+    return { w, h };
+  }
+
+  // Universal AABB overlap resolution pass
+  function resolveNodeOverlaps(nodesList, maxIterations = 40) {
+    const gapX = 35;
+    const gapY = 45;
+    for (let iter = 0; iter < maxIterations; iter++) {
+      let moved = false;
+      for (let i = 0; i < nodesList.length; i++) {
+        const n1 = nodesList[i];
+        const d1 = getNodeDimensions(n1);
+        for (let j = i + 1; j < nodesList.length; j++) {
+          const n2 = nodesList[j];
+          const d2 = getNodeDimensions(n2);
+
+          const minDx = (d1.w + d2.w) / 2 + gapX;
+          const minDy = (d1.h + d2.h) / 2 + gapY;
+          let dx = n2.x - n1.x;
+          let dy = n2.y - n1.y;
+
+          const overlapX = minDx - Math.abs(dx);
+          const overlapY = minDy - Math.abs(dy);
+
+          if (overlapX > 0 && overlapY > 0) {
+            moved = true;
+            if (overlapX < overlapY) {
+              const push = (overlapX / 2) + 1;
+              const sign = dx >= 0 ? 1 : -1;
+              n1.x -= push * sign;
+              n2.x += push * sign;
+            } else {
+              const push = (overlapY / 2) + 1;
+              const sign = dy >= 0 ? 1 : -1;
+              n1.y -= push * sign;
+              n2.y += push * sign;
+            }
+          }
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
+  // Visual group boundaries
+  function renderGroups(groupsList) {
+    const container = document.getElementById('groups-group');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!showGroupBoxes || !groupsList || groupsList.length === 0) return;
+
+    groupsList.forEach(grp => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'group-container');
+      g.setAttribute('id', `group-${grp.id}`);
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', grp.x);
+      rect.setAttribute('y', grp.y);
+      rect.setAttribute('width', grp.width);
+      rect.setAttribute('height', grp.height);
+      rect.setAttribute('class', 'group-box');
+      if (grp.strokeColor) {
+        rect.style.stroke = grp.strokeColor;
+      }
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.setAttribute('x', grp.x + 16);
+      title.setAttribute('y', grp.y + 22);
+      title.setAttribute('class', 'group-box-label');
+      title.textContent = grp.title;
+      if (grp.textColor) {
+        title.style.fill = grp.textColor;
+      }
+      g.appendChild(rect);
+      g.appendChild(title);
+
+      if (grp.subtitle) {
+        const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sub.setAttribute('x', grp.x + grp.width - 16);
+        sub.setAttribute('y', grp.y + 22);
+        sub.setAttribute('text-anchor', 'end');
+        sub.setAttribute('class', 'group-box-sublabel');
+        sub.textContent = grp.subtitle;
+        g.appendChild(sub);
+      }
+
+      container.appendChild(g);
+    });
+  }
+
+  function handleGroupBoxToggle(checked) {
+    showGroupBoxes = checked;
+    renderGroups(activeGroups);
+  }
+
+  // ==========================================
+  // MULTI-MODE LAYOUT ENGINE (7 MODES)
+  // ==========================================
+  function computeLayout(filteredNodes, filteredLinks, forcedMode = null) {
     const adj = {};
     const parentMap = {};
+    activeGroups = [];
     
     // Initialize adjacency list
     filteredNodes.forEach(node => {
@@ -736,8 +1044,6 @@
     });
     
     filteredLinks.forEach(link => {
-      // client links are strictly parent-child (source -> target)
-      // uplinks and infra links are also directed source -> target
       if (adj[link.source] && adj[link.target]) {
         adj[link.source].push(link.target);
         adj[link.target].push(link.source);
@@ -756,13 +1062,8 @@
       } else {
         const switches = filteredNodes.filter(n => n.type === 'switch');
         if (switches.length > 0) {
-          // Prefer Fritz!Box switch node if present
           const fritz = switches.find(n => (n.model && n.model.toLowerCase() === 'fritzbox') || n.name.toLowerCase().includes('fritz'));
-          if (fritz) {
-            root = fritz.id;
-          } else {
-            root = switches[0].id;
-          }
+          root = fritz ? fritz.id : switches[0].id;
         } else if (filteredNodes.length > 0) {
           root = filteredNodes[0].id;
         }
@@ -792,23 +1093,12 @@
       });
     }
 
-    // Place unreached/orphaned nodes on level 1
     filteredNodes.forEach(node => {
       if (!(node.id in levels)) {
         levels[node.id] = 1;
       }
     });
 
-    // Group nodes by level
-    const nodesByLevel = {};
-    filteredNodes.forEach(node => {
-      const lvl = levels[node.id];
-      if (!nodesByLevel[lvl]) nodesByLevel[lvl] = [];
-      nodesByLevel[lvl].push(node);
-    });
-
-    // Let's filter out clients first from BFS to layout switches/infrastructure beautifully.
-    // Then we cluster client nodes in local fans around their parent switch/AP.
     const switchesAndInfraByLevel = {};
     const clientNodes = [];
     
@@ -822,41 +1112,11 @@
       }
     });
 
-    // Dimensions
-    const svgWidth = Math.max(canvasContainer.clientWidth, 900);
-    const svgHeight = Math.max(canvasContainer.clientHeight, 600);
+    const svgWidth = Math.max(canvasContainer.clientWidth, 1200);
+    const svgHeight = Math.max(canvasContainer.clientHeight, 700);
 
-    const maxLevel = Object.keys(switchesAndInfraByLevel).reduce((a, b) => Math.max(a, parseInt(b)), 0);
-    const levelHeight = Math.max((svgHeight - 160) / (maxLevel + 1), 180);
-
-    // 1. Layout switches and gateways level by level
-    Object.keys(switchesAndInfraByLevel).forEach(lvl => {
-      const levelNodes = switchesAndInfraByLevel[lvl];
-      const count = levelNodes.length;
-      
-      levelNodes.forEach((node, idx) => {
-        // If already positioned in cache, retrieve it
-        if (positionCache[node.id]) {
-          node.x = positionCache[node.id].x;
-          node.y = positionCache[node.id].y;
-        } else {
-          // Center-distribute horizontally
-          node.x = (idx + 0.5) * (svgWidth / count);
-          node.y = 80 + parseInt(lvl) * levelHeight;
-          
-          // Add a minor jitter to avoid direct line overlaps
-          node.x += (idx % 2 === 0 ? 15 : -15);
-          
-          // Save in cache
-          positionCache[node.id] = { x: node.x, y: node.y };
-        }
-      });
-    });
-
-    // 2. Layout client nodes in beautiful clusters / fans under their parent switch/AP
     const clientsByParent = {};
     clientNodes.forEach(client => {
-      // Find parent of this client
       let parentId = null;
       filteredLinks.forEach(link => {
         if (link.target === client.id) {
@@ -869,55 +1129,490 @@
       }
     });
 
-    Object.keys(clientsByParent).forEach(parentId => {
-      const parentNode = filteredNodes.find(n => n.id === parentId);
-      if (!parentNode) return;
-
-      const clients = clientsByParent[parentId];
-      const count = clients.length;
-      clients.forEach((client, idx) => {
-        if (positionCache[client.id]) {
-          client.x = positionCache[client.id].x;
-          client.y = positionCache[client.id].y;
+    // If no forcedMode, and all nodes have cached positions, retain them!
+    if (!forcedMode) {
+      let allCached = true;
+      filteredNodes.forEach(node => {
+        if (positionCache[node.id]) {
+          node.x = positionCache[node.id].x;
+          node.y = positionCache[node.id].y;
         } else {
-          // Concentric staggered rings layout to avoid overlapping
-          const clientsPerRing = 4;
-          const ring = Math.floor(idx / clientsPerRing);
-          const idxInRing = idx % clientsPerRing;
-          
-          const clientsInThisRing = Math.min(clientsPerRing, count - ring * clientsPerRing);
-          const radius = 120 + ring * 95;
-          
-          const startAngle = Math.PI * 0.05; // ~9 degrees
-          const endAngle = Math.PI * 0.95;   // ~171 degrees
-          
-          let angle;
-          if (clientsInThisRing === 1) {
-            angle = Math.PI / 2;
-          } else {
-            angle = startAngle + idxInRing * (endAngle - startAngle) / (clientsInThisRing - 1);
-          }
-          
-          // Stagger alternate rings
-          if (ring % 2 === 1) {
-            angle += 0.15;
-          }
-          
-          client.x = parentNode.x + radius * Math.cos(angle);
-          client.y = parentNode.y + radius * Math.sin(angle);
-
-          positionCache[client.id] = { x: client.x, y: client.y };
+          allCached = false;
         }
       });
-    });
-
-    // Ensure all nodes have valid x and y coordinates, preventing overlapping at (0,0)
-    filteredNodes.forEach((node, idx) => {
-      if (node.x === undefined || node.y === undefined || isNaN(node.x) || isNaN(node.y)) {
-        node.x = 120 + (idx % 5) * 180;
-        node.y = 80 + Math.floor(idx / 5) * 120;
-        positionCache[node.id] = { x: node.x, y: node.y };
+      if (allCached) {
+        nodes = {};
+        filteredNodes.forEach(node => { nodes[node.id] = node; });
+        return;
       }
+    }
+
+    const mode = forcedMode || 'tree_vertical';
+
+    if (mode === 'switch_pods') {
+      // ==========================================================
+      // MODE 2: SWITCH ISLANDS (PODS GROUPED BY SWITCH)
+      // ==========================================================
+      const pods = [];
+      const assignedNodeIds = new Set();
+
+      // 1. Gateway/Internet Pod
+      const gatewayNodes = filteredNodes.filter(n => n.type === 'internet' || n.type === 'router');
+      if (gatewayNodes.length > 0) {
+        gatewayNodes.forEach(n => assignedNodeIds.add(n.id));
+        pods.push({
+          id: 'pod_gateway',
+          title: 'Core Gateway & WAN',
+          type: 'gateway',
+          headerNode: gatewayNodes[0],
+          memberNodes: gatewayNodes,
+          color: '#a855f7'
+        });
+      }
+
+      // 2. Pod for each switch / repeater
+      const infraNodes = filteredNodes.filter(n => (n.type === 'switch' || n.type === 'repeater' || n.type === 'unmanaged_switch') && !assignedNodeIds.has(n.id));
+      infraNodes.forEach(infra => {
+        assignedNodeIds.add(infra.id);
+        const directClients = clientsByParent[infra.id] || [];
+        directClients.forEach(c => assignedNodeIds.add(c.id));
+        pods.push({
+          id: `pod_${infra.id}`,
+          title: infra.name || 'Switch Island',
+          subtitle: `${directClients.length} device${directClients.length === 1 ? '' : 's'}`,
+          type: infra.type,
+          headerNode: infra,
+          memberNodes: [infra, ...directClients],
+          color: infra.type === 'switch' ? '#388bfd' : '#f97316'
+        });
+      });
+
+      // 3. Leftover orphan clients
+      const orphans = filteredNodes.filter(n => !assignedNodeIds.has(n.id));
+      if (orphans.length > 0) {
+        pods.push({
+          id: 'pod_other',
+          title: 'Other Network Devices',
+          subtitle: `${orphans.length} device${orphans.length === 1 ? '' : 's'}`,
+          type: 'other',
+          headerNode: null,
+          memberNodes: orphans,
+          color: '#10b981'
+        });
+      }
+
+      // Lay out each pod internally
+      const podDims = [];
+      pods.forEach(pod => {
+        const clients = pod.headerNode ? pod.memberNodes.filter(n => n.id !== pod.headerNode.id) : pod.memberNodes;
+        const cols = Math.max(1, Math.min(3, Math.ceil(Math.sqrt(clients.length || 1))));
+        const rows = Math.ceil(clients.length / cols) || 1;
+        const podW = Math.max(260, cols * 225 + 40);
+        const podH = (pod.headerNode ? 120 : 45) + rows * 85 + 35;
+        podDims.push({ pod, cols, rows, w: podW, h: podH });
+      });
+
+      // Arrange pods across canvas in a responsive flow grid
+      let curX = 60;
+      let curY = 70;
+      let maxRowHeight = 0;
+      const maxCanvasWidth = Math.max(svgWidth, 1100);
+
+      podDims.forEach(({ pod, cols, rows, w, h }) => {
+        if (curX + w > maxCanvasWidth && curX > 60) {
+          curX = 60;
+          curY += maxRowHeight + 60;
+          maxRowHeight = 0;
+        }
+
+        activeGroups.push({
+          id: pod.id,
+          title: pod.title,
+          subtitle: pod.subtitle,
+          x: curX,
+          y: curY,
+          width: w,
+          height: h,
+          strokeColor: pod.color,
+          textColor: pod.color
+        });
+
+        if (pod.headerNode) {
+          pod.headerNode.x = curX + w / 2;
+          pod.headerNode.y = curY + 50;
+          positionCache[pod.headerNode.id] = { x: pod.headerNode.x, y: pod.headerNode.y };
+        }
+
+        const clients = pod.headerNode ? pod.memberNodes.filter(n => n.id !== pod.headerNode.id) : pod.memberNodes;
+        const startClientY = curY + (pod.headerNode ? 140 : 55);
+
+        clients.forEach((client, idx) => {
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          const inThisRow = Math.min(cols, clients.length - row * cols);
+          const rowStartX = curX + (w - (inThisRow - 1) * 220) / 2;
+
+          client.x = rowStartX + col * 220;
+          client.y = startClientY + row * 85;
+          positionCache[client.id] = { x: client.x, y: client.y };
+        });
+
+        curX += w + 50;
+        if (h > maxRowHeight) maxRowHeight = h;
+      });
+
+    } else if (mode === 'type_columns') {
+      // ==========================================================
+      // MODE 3: DEVICE TYPE LANES (COLUMN CHANNELS)
+      // ==========================================================
+      const categories = [
+        {
+          id: 'col_infra',
+          name: 'Core Infrastructure',
+          color: '#388bfd',
+          matcher: n => n.type === 'switch' || n.type === 'router' || n.type === 'internet' || n.type === 'repeater' || n.type === 'unmanaged_switch'
+        },
+        {
+          id: 'col_workstations',
+          name: 'Workstations & Servers',
+          color: '#8b5cf6',
+          matcher: n => n.type === 'client' && ['pc_desktop', 'laptop', 'server', 'nas', 'nvr'].includes(n.device_type)
+        },
+        {
+          id: 'col_smart_home',
+          name: 'Smart Home & IoT',
+          color: '#10b981',
+          matcher: n => n.type === 'client' && ['sensore', 'smart_switch', 'smart_plug', 'ipcam', 'vacuum_robot', 'air_conditioner', 'dehumidifier', 'three_d_printer', 'dryer'].includes(n.device_type)
+        },
+        {
+          id: 'col_media',
+          name: 'Media & Mobile',
+          color: '#ec4899',
+          matcher: n => n.type === 'client' && !['pc_desktop', 'laptop', 'server', 'nas', 'nvr', 'sensore', 'smart_switch', 'smart_plug', 'ipcam', 'vacuum_robot', 'air_conditioner', 'dehumidifier', 'three_d_printer', 'dryer'].includes(n.device_type)
+        }
+      ];
+
+      const activeCols = [];
+      categories.forEach(cat => {
+        const items = filteredNodes.filter(cat.matcher);
+        if (items.length > 0) {
+          activeCols.push({ ...cat, items });
+        }
+      });
+
+      const colWidth = 240;
+      const colGap = 65;
+      const totalColsWidth = activeCols.length * colWidth + (activeCols.length - 1) * colGap;
+      const startX = Math.max(60, (svgWidth - totalColsWidth) / 2);
+
+      activeCols.forEach((col, cIdx) => {
+        const x = startX + cIdx * (colWidth + colGap);
+        const colCenterX = x + colWidth / 2;
+        const count = col.items.length;
+        const colHeight = 55 + count * 85 + 20;
+
+        activeGroups.push({
+          id: col.id,
+          title: col.name,
+          subtitle: `${count} device${count === 1 ? '' : 's'}`,
+          x: x,
+          y: 60,
+          width: colWidth,
+          height: colHeight,
+          strokeColor: col.color,
+          textColor: col.color
+        });
+
+        col.items.forEach((node, rIdx) => {
+          node.x = colCenterX;
+          node.y = 120 + rIdx * 85;
+          positionCache[node.id] = { x: node.x, y: node.y };
+        });
+      });
+
+    } else if (mode === 'tree_horizontal') {
+      // ==========================================================
+      // MODE 4: HORIZONTAL FLOW (NON-OVERLAPPING VERTICAL SPANS)
+      // ==========================================================
+      let curY = 80;
+
+      Object.keys(switchesAndInfraByLevel).sort((a,b) => parseInt(a) - parseInt(b)).forEach(lvl => {
+        const levelNodes = switchesAndInfraByLevel[lvl];
+        const levelX = 140 + parseInt(lvl) * 310;
+
+        levelNodes.forEach(node => {
+          const directClients = clientsByParent[node.id] || [];
+          const clientRows = Math.ceil(directClients.length / 2) || 1;
+          const spanHeight = Math.max(95, clientRows * 85 + 30);
+
+          node.x = levelX;
+          node.y = curY + spanHeight / 2;
+          positionCache[node.id] = { x: node.x, y: node.y };
+
+          directClients.forEach((client, idx) => {
+            const col = idx % 2;
+            const row = Math.floor(idx / 2);
+            client.x = node.x + 265 + col * 225;
+            client.y = curY + 45 + row * 85;
+            positionCache[client.id] = { x: client.x, y: client.y };
+          });
+
+          if (directClients.length > 0) {
+            activeGroups.push({
+              id: `grp_horiz_${node.id}`,
+              title: node.name,
+              subtitle: `${directClients.length} clients`,
+              x: node.x - 15,
+              y: curY + 5,
+              width: 280 + (directClients.length > 1 ? 450 : 225),
+              height: spanHeight,
+              strokeColor: 'rgba(56, 139, 253, 0.35)',
+              textColor: '#58a6ff'
+            });
+          }
+
+          curY += spanHeight + 50;
+        });
+      });
+
+    } else if (mode === 'grid_tiered') {
+      // ==========================================================
+      // MODE 5: TIERED GRID (GROUPED LAYERS)
+      // ==========================================================
+      const tiers = [
+        { name: 'Tier 0: WAN & Gateway', color: '#a855f7', nodes: filteredNodes.filter(n => n.type === 'internet' || n.type === 'router') },
+        { name: 'Tier 1: Core Switches', color: '#388bfd', nodes: filteredNodes.filter(n => n.type === 'switch') },
+        { name: 'Tier 2: Edge Switches & APs', color: '#f97316', nodes: filteredNodes.filter(n => n.type === 'unmanaged_switch' || n.type === 'repeater') },
+        { name: 'Tier 3: Client Devices', color: '#10b981', nodes: filteredNodes.filter(n => n.type === 'client') }
+      ];
+
+      let currentY = 70;
+      tiers.forEach((tier, tIdx) => {
+        if (tier.nodes.length === 0) return;
+        const cardWidth = 230;
+        const cardHeight = 90;
+        const maxCols = Math.min(tier.nodes.length, Math.max(3, Math.floor((svgWidth - 100) / cardWidth)));
+        const numRows = Math.ceil(tier.nodes.length / maxCols);
+        const tierH = 45 + numRows * cardHeight + 20;
+
+        activeGroups.push({
+          id: `tier_${tIdx}`,
+          title: tier.name,
+          subtitle: `${tier.nodes.length} nodes`,
+          x: 40,
+          y: currentY,
+          width: svgWidth - 80,
+          height: tierH,
+          strokeColor: tier.color,
+          textColor: tier.color
+        });
+
+        tier.nodes.forEach((node, idx) => {
+          const row = Math.floor(idx / maxCols);
+          const col = idx % maxCols;
+          const itemsInThisRow = Math.min(maxCols, tier.nodes.length - row * maxCols);
+          const startX = (svgWidth - (itemsInThisRow - 1) * cardWidth) / 2;
+          node.x = startX + col * cardWidth;
+          node.y = currentY + 45 + row * cardHeight + 30;
+          positionCache[node.id] = { x: node.x, y: node.y };
+        });
+
+        currentY += tierH + 60;
+      });
+
+    } else if (mode === 'radial_sectored') {
+      // ==========================================================
+      // MODE 6: CONCENTRIC RADIAL (SECTORED)
+      // ==========================================================
+      const cx = Math.max(svgWidth / 2, 600);
+      const cy = Math.max(svgHeight / 2, 450);
+
+      const rootNode = filteredNodes.find(n => n.id === root);
+      if (rootNode) {
+        rootNode.x = cx;
+        rootNode.y = cy;
+        positionCache[rootNode.id] = { x: cx, y: cy };
+      }
+
+      const parents = Object.keys(clientsByParent);
+      const totalWeights = parents.reduce((sum, pId) => sum + Math.max(2, clientsByParent[pId].length), 0) || 1;
+      let curAngle = -Math.PI / 2;
+
+      parents.forEach((parentId) => {
+        const parentNode = filteredNodes.find(n => n.id === parentId);
+        const clients = clientsByParent[parentId] || [];
+        const weight = Math.max(2, clients.length);
+        const sectorAngle = (2 * Math.PI * weight) / totalWeights;
+        const midAngle = curAngle + sectorAngle / 2;
+
+        if (parentNode && parentNode.id !== root) {
+          parentNode.x = cx + 290 * Math.cos(midAngle);
+          parentNode.y = cy + 290 * Math.sin(midAngle);
+          positionCache[parentNode.id] = { x: parentNode.x, y: parentNode.y };
+        }
+
+        clients.forEach((client, cIdx) => {
+          const ring = Math.floor(cIdx / 3);
+          const inRingIdx = cIdx % 3;
+          const countInRing = Math.min(3, clients.length - ring * 3);
+          const span = sectorAngle * 0.82;
+          const aStart = midAngle - span / 2;
+          const angle = countInRing === 1 ? midAngle : aStart + inRingIdx * (span / (countInRing - 1));
+          const r = 480 + ring * 165;
+
+          client.x = cx + r * Math.cos(angle);
+          client.y = cy + r * Math.sin(angle);
+          positionCache[client.id] = { x: client.x, y: client.y };
+        });
+
+        curAngle += sectorAngle;
+      });
+
+    } else if (mode === 'force_clustered') {
+      // ==========================================================
+      // MODE 7: ORGANIC PHYSICS (CLUSTERED WITH AABB COLLISION RESOLUTION)
+      // ==========================================================
+      const cx = svgWidth / 2;
+      const cy = svgHeight / 2;
+      const numNodes = filteredNodes.length;
+
+      filteredNodes.forEach((node, idx) => {
+        const angle = (2 * Math.PI * idx) / numNodes;
+        const r = 180 + (idx % 4) * 80;
+        node.x = cx + r * Math.cos(angle);
+        node.y = cy + r * Math.sin(angle);
+        node.vx = 0;
+        node.vy = 0;
+      });
+
+      const rootNode = filteredNodes.find(n => n.id === root);
+
+      const iterations = 100;
+      for (let iter = 0; iter < iterations; iter++) {
+        const decay = 1 - (iter / iterations) * 0.7;
+
+        for (let i = 0; i < numNodes; i++) {
+          const n1 = filteredNodes[i];
+          for (let j = i + 1; j < numNodes; j++) {
+            const n2 = filteredNodes[j];
+            const dx = n1.x - n2.x;
+            const dy = n1.y - n2.y;
+            const distSq = dx * dx + dy * dy + 100;
+            const dist = Math.sqrt(distSq);
+            if (dist < 480) {
+              const f = (22000 / distSq) * decay;
+              const fx = (dx / dist) * f;
+              const fy = (dy / dist) * f;
+              n1.vx += fx;
+              n1.vy += fy;
+              n2.vx -= fx;
+              n2.vy -= fy;
+            }
+          }
+        }
+
+        filteredLinks.forEach(link => {
+          const n1 = filteredNodes.find(n => n.id === link.source);
+          const n2 = filteredNodes.find(n => n.id === link.target);
+          if (!n1 || !n2) return;
+          const dx = n2.x - n1.x;
+          const dy = n2.y - n1.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const targetDist = link.type === 'client' ? 180 : 280;
+          const f = (dist - targetDist) * 0.04 * decay;
+          n1.vx += (dx / dist) * f;
+          n1.vy += (dy / dist) * f;
+          n2.vx -= (dx / dist) * f;
+          n2.vy -= (dy / dist) * f;
+        });
+
+        filteredNodes.forEach(n => {
+          n.vx += (cx - n.x) * 0.01 * decay;
+          n.vy += (cy - n.y) * 0.01 * decay;
+
+          const v = Math.sqrt(n.vx * n.vx + n.vy * n.vy);
+          const maxV = 20 * decay;
+          if (v > maxV) {
+            n.vx = (n.vx / v) * maxV;
+            n.vy = (n.vy / v) * maxV;
+          }
+
+          n.x += n.vx;
+          n.y += n.vy;
+          n.vx *= 0.75;
+          n.vy *= 0.75;
+        });
+
+        if (rootNode) {
+          rootNode.x = cx;
+          rootNode.y = Math.min(rootNode.y, 90);
+        }
+      }
+
+      filteredNodes.forEach(node => {
+        delete node.vx;
+        delete node.vy;
+        positionCache[node.id] = { x: node.x, y: node.y };
+      });
+
+    } else {
+      // ==========================================================
+      // MODE 1: VERTICAL HIERARCHY (NON-OVERLAPPING SUBTREES)
+      // ==========================================================
+      let curX = 80;
+
+      Object.keys(switchesAndInfraByLevel).sort((a,b) => parseInt(a) - parseInt(b)).forEach(lvl => {
+        const levelNodes = switchesAndInfraByLevel[lvl];
+        const levelY = 80 + parseInt(lvl) * 310;
+
+        levelNodes.forEach(node => {
+          const directClients = clientsByParent[node.id] || [];
+          const clientCols = Math.max(1, Math.min(3, Math.ceil(Math.sqrt(directClients.length))));
+          const clientRows = Math.ceil(directClients.length / clientCols) || 1;
+          const subtreeWidth = Math.max(240, clientCols * 220 + 40);
+
+          const nodeCenterX = curX + subtreeWidth / 2;
+          node.x = nodeCenterX;
+          node.y = levelY;
+          positionCache[node.id] = { x: node.x, y: node.y };
+
+          const startClientY = levelY + 125;
+          directClients.forEach((client, idx) => {
+            const col = idx % clientCols;
+            const row = Math.floor(idx / clientCols);
+            const inThisRow = Math.min(clientCols, directClients.length - row * clientCols);
+            const rowStartX = nodeCenterX - ((inThisRow - 1) * 215) / 2;
+
+            client.x = rowStartX + col * 215;
+            client.y = startClientY + row * 85;
+            positionCache[client.id] = { x: client.x, y: client.y };
+          });
+
+          if (directClients.length > 0) {
+            activeGroups.push({
+              id: `grp_tree_${node.id}`,
+              title: node.name,
+              subtitle: `${directClients.length} clients`,
+              x: curX,
+              y: levelY - 20,
+              width: subtreeWidth,
+              height: 125 + clientRows * 85 + 20,
+              strokeColor: 'rgba(56, 139, 253, 0.35)',
+              textColor: '#58a6ff'
+            });
+          }
+
+          curX += subtreeWidth + 50;
+        });
+      });
+    }
+
+    // Universal Overlap Resolution Guarantee
+    resolveNodeOverlaps(filteredNodes);
+
+    // Sync positions into cache
+    filteredNodes.forEach(node => {
+      positionCache[node.id] = { x: node.x, y: node.y };
     });
 
     // Assemble nodes map
@@ -927,9 +1622,8 @@
     });
   }
 
-  // Draw links and nodes
-  function processAndRender() {
-    // 1. Filter elements based on client toggle
+  // Draw links, nodes, and groups
+  function processAndRender(recomputeMode = null) {
     let filteredNodes = rawNodes;
     let filteredLinks = rawLinks;
     
@@ -938,14 +1632,200 @@
       filteredLinks = rawLinks.filter(l => l.type !== 'client');
     }
 
-    // Compute node coordinates
-    computeLayout(filteredNodes, filteredLinks);
+    if (dropOffline) {
+      const offlineIds = new Set(rawNodes.filter(n => n.status === 'offline').map(n => n.id));
+      filteredNodes = filteredNodes.filter(n => !offlineIds.has(n.id));
+      filteredLinks = filteredLinks.filter(l => !offlineIds.has(l.source) && !offlineIds.has(l.target));
+    }
+
+    // Compute node coordinates & active group boundaries
+    computeLayout(filteredNodes, filteredLinks, recomputeMode);
+
+    // Render group cards
+    renderGroups(activeGroups);
 
     // Render links
     renderLinks(filteredLinks);
 
     // Render nodes
     renderNodes(filteredNodes);
+  }
+
+  // ==========================================
+  // DROP OFFLINE DEVICES TOGGLE
+  // ==========================================
+  function toggleDropOffline(forceState) {
+    if (forceState !== undefined) {
+      dropOffline = forceState;
+    } else {
+      dropOffline = !dropOffline;
+    }
+
+    const toggleEl = document.getElementById('toggle-drop-offline');
+    if (toggleEl) toggleEl.checked = dropOffline;
+
+    const btnEl = document.getElementById('btn-drop-offline');
+    if (btnEl) {
+      if (dropOffline) {
+        btnEl.classList.add('active-danger');
+        btnEl.title = 'Showing Only Online Devices (Click to Show All)';
+      } else {
+        btnEl.classList.remove('active-danger');
+        btnEl.title = 'Drop All Offline Devices';
+      }
+    }
+
+    const offlineCount = rawNodes.filter(n => n.status === 'offline').length;
+    if (dropOffline) {
+      showToast(`🚫 Dropped ${offlineCount} offline device${offlineCount === 1 ? '' : 's'}`);
+    } else {
+      showToast(`👁️ Showing all devices (${offlineCount} offline restored)`);
+    }
+
+    processAndRender();
+  }
+
+  // ==========================================
+  // DIRECT LAYOUT SELECTOR & CYCLE ENGINE
+  // ==========================================
+  async function selectLayout(layoutId) {
+    const idx = LAYOUT_MODES.findIndex(m => m.id === layoutId);
+    if (idx !== -1) {
+      currentLayoutIndex = idx;
+    }
+    await applyCurrentLayout();
+  }
+
+  async function cycleLayout() {
+    currentLayoutIndex = (currentLayoutIndex + 1) % LAYOUT_MODES.length;
+    await applyCurrentLayout();
+  }
+
+  async function applyCurrentLayout() {
+    const mode = LAYOUT_MODES[currentLayoutIndex];
+
+    const labelEl = document.getElementById('current-layout-label');
+    if (labelEl) labelEl.textContent = mode.name;
+
+    const indexEl = document.getElementById('current-layout-index');
+    if (indexEl) indexEl.textContent = `${currentLayoutIndex + 1}/${LAYOUT_MODES.length}`;
+
+    const selectEl = document.getElementById('layout-select');
+    if (selectEl) selectEl.value = mode.id;
+
+    const btnSidebar = document.getElementById('btn-cycle-layout-sidebar');
+    if (btnSidebar) btnSidebar.title = `Switch layout (Current: ${mode.name})`;
+
+    const btnFloat = document.getElementById('btn-cycle-layout');
+    if (btnFloat) {
+      btnFloat.classList.add('active');
+      setTimeout(() => btnFloat.classList.remove('active'), 1200);
+    }
+
+    showToast(`${mode.icon} Layout: ${mode.name} (${currentLayoutIndex + 1}/${LAYOUT_MODES.length})`);
+
+    let filteredNodes = rawNodes;
+    let filteredLinks = rawLinks;
+    if (!showClients) {
+      filteredNodes = filteredNodes.filter(n => n.type !== 'client');
+      filteredLinks = rawLinks.filter(l => l.type !== 'client');
+    }
+    if (dropOffline) {
+      const offlineIds = new Set(rawNodes.filter(n => n.status === 'offline').map(n => n.id));
+      filteredNodes = filteredNodes.filter(n => !offlineIds.has(n.id));
+      filteredLinks = filteredLinks.filter(l => !offlineIds.has(l.source) && !offlineIds.has(l.target));
+    }
+
+    const startPositions = {};
+    filteredNodes.forEach(node => {
+      startPositions[node.id] = { x: node.x || 100, y: node.y || 100 };
+    });
+
+    filteredNodes.forEach(node => {
+      delete positionCache[node.id];
+    });
+
+    computeLayout(filteredNodes, filteredLinks, mode.id);
+
+    const targetPositions = {};
+    filteredNodes.forEach(node => {
+      targetPositions[node.id] = { x: node.x, y: node.y };
+      node.x = startPositions[node.id].x;
+      node.y = startPositions[node.id].y;
+    });
+
+    renderGroups(activeGroups);
+    animateLayoutTransition(filteredNodes, filteredLinks, startPositions, targetPositions, 400);
+
+    try {
+      await fetch('/api/config/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ map_positions: positionCache })
+      });
+    } catch (e) {
+      console.error("Failed to save layout coordinates to server:", e);
+    }
+  }
+
+  function animateLayoutTransition(animNodes, animLinks, startPos, targetPos, durationMs = 380) {
+    const startTime = performance.now();
+
+    function frame(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      animNodes.forEach(node => {
+        const start = startPos[node.id] || { x: node.x, y: node.y };
+        const target = targetPos[node.id] || start;
+        node.x = start.x + (target.x - start.x) * ease;
+        node.y = start.y + (target.y - start.y) * ease;
+        positionCache[node.id] = { x: node.x, y: node.y };
+      });
+
+      renderGroups(activeGroups);
+      renderLinks(animLinks);
+      renderNodes(animNodes);
+
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        animNodes.forEach(node => {
+          if (targetPos[node.id]) {
+            node.x = targetPos[node.id].x;
+            node.y = targetPos[node.id].y;
+            positionCache[node.id] = { x: node.x, y: node.y };
+          }
+        });
+        renderGroups(activeGroups);
+        renderLinks(animLinks);
+        renderNodes(animNodes);
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // Floating toast notification
+  function showToast(message) {
+    let toast = document.getElementById('layout-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'layout-toast';
+      toast.className = 'layout-toast';
+      canvasContainer.appendChild(toast);
+    }
+    toast.innerHTML = message;
+    toast.style.display = 'flex';
+    toast.style.animation = 'none';
+    toast.offsetHeight; // trigger reflow
+    toast.style.animation = 'toastFade 2.4s forwards';
+
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.style.display = 'none';
+    }, 2400);
   }
 
   function renderLinks(filteredLinks) {
@@ -969,7 +1849,7 @@
       const speedClass = `link-${(link.speed || '').toLowerCase().replace('/', '').replace('.', '_')}`;
       
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('class', `link-group ${speedClass}`);
+      g.setAttribute('class', `link-group ${speedClass}`.trim());
       g.setAttribute('id', `link-group-${idx}`);
 
       // Transparent thick background path for easier hovering
@@ -986,7 +1866,9 @@
       const marchPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       marchPath.setAttribute('d', pathData);
       marchPath.setAttribute('class', 'link-marching');
-      if (!showMarching) marchPath.style.display = 'none';
+      if (!showMarching) {
+        marchPath.style.display = 'none';
+      }
 
       g.appendChild(bgPath);
       g.appendChild(linePath);
@@ -995,11 +1877,11 @@
       // Render port speed label badge at 25% and 75% along the Bezier curve path
       if (link.source_port && link.source_port !== 'unknown') {
         const pt = getBezierPoint(0.25, x1, y1, x2, y2);
-        g.appendChild(createPortBadge(pt.x, pt.y - 8, link.source_port.replace('Port ', 'P'), 'source-badge'));
+        g.appendChild(createPortBadge(pt.x, pt.y - 8, link.source_port.replace(/^Port\s+/i, 'P'), 'source-badge'));
       }
       if (link.target_port && link.target_port !== 'unknown') {
         const pt = getBezierPoint(0.75, x1, y1, x2, y2);
-        g.appendChild(createPortBadge(pt.x, pt.y + 8, link.target_port.replace('Port ', 'P'), 'target-badge'));
+        g.appendChild(createPortBadge(pt.x, pt.y + 8, link.target_port.replace(/^Port\s+/i, 'P'), 'target-badge'));
       }
 
       // Tooltip triggers
@@ -1032,8 +1914,9 @@
   }
 
   function createPortBadge(x, y, text, extraClass) {
+    const badgeW = Math.max(24, Math.round(text.length * 6.5 + 8));
     const badge = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    badge.setAttribute('transform', `translate(${x - 12}, ${y - 6})`);
+    badge.setAttribute('transform', `translate(${x - badgeW / 2}, ${y - 6})`);
     badge.style.pointerEvents = 'none';
     if (extraClass) {
       badge.setAttribute('class', `port-badge-group ${extraClass}`);
@@ -1042,12 +1925,12 @@
     }
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('width', '24');
+    rect.setAttribute('width', badgeW);
     rect.setAttribute('height', '12');
     rect.setAttribute('class', 'port-badge');
 
     const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    txt.setAttribute('x', '12');
+    txt.setAttribute('x', badgeW / 2);
     txt.setAttribute('y', '6');
     txt.setAttribute('class', 'port-badge-text');
     txt.textContent = text;
@@ -1090,6 +1973,7 @@
       if (node.type === 'switch') sublabelVal = node.ip || '';
       else if (node.type === 'unmanaged_switch') sublabelVal = `Unmanaged (Port ${node.parent_port})`;
       else if (node.type === 'internet') sublabelVal = 'WAN External';
+      else if (node.type === 'client') sublabelVal = node.ip || node.mac || '';
       else sublabelVal = node.mac || '';
       const textLen = Math.max((node.name || '').length, sublabelVal.length);
       // Auto width: base of 150px for clients, 160px for others, expanding if text is long
@@ -1165,6 +2049,8 @@
         subLabelText.textContent = `Unmanaged (Port ${node.parent_port})`;
       } else if (node.type === 'internet') {
         subLabelText.textContent = 'WAN External';
+      } else if (node.type === 'client' && node.ip) {
+        subLabelText.textContent = node.ip;
       } else {
         subLabelText.textContent = formatMacAddress(node.mac);
       }
@@ -1328,7 +2214,12 @@
     showMarching = document.getElementById('toggle-marching').checked;
     const marchings = document.querySelectorAll('.link-marching');
     marchings.forEach(el => {
-      el.style.display = showMarching ? 'block' : 'none';
+      const isWifi = el.closest('.link-wifi-2_4g, .link-wifi-5g, .link-wifi-6g, .link-wifi, .link-wlan');
+      if (isWifi) {
+        el.style.animation = showMarching ? 'march 25s linear infinite' : 'none';
+      } else {
+        el.style.display = showMarching ? 'block' : 'none';
+      }
     });
   }
 
@@ -1517,14 +2408,35 @@
               </select>
             </div>
           </div>
+          ${node.ip ? `
+          <div class="detail-item">
+            <div class="label">IP Address</div>
+            <div class="value mono" style="color: #58a6ff; font-weight: 600;">${node.ip}</div>
+          </div>` : ''}
+          <div class="detail-item">
+            <div class="label">MAC Address</div>
+            <div class="value mono">${formattedMac}</div>
+          </div>
           <div class="detail-item">
             <div class="label">Last Location</div>
             <div class="value">${node.last_seen_ip}:${node.last_seen_port}</div>
           </div>
+          ${(node.wifi_band || (node.last_seen_port && (node.last_seen_port.includes('2.4') ? '2.4GHz' : node.last_seen_port.includes('5G') ? '5GHz' : ''))) ? `
+          <div class="detail-item">
+            <div class="label">Wi-Fi Band</div>
+            <div class="value" style="color: ${(node.wifi_band || node.last_seen_port || '').includes('5') ? '#f778ba' : '#a371f7'}; font-weight: 600;">
+              ${node.wifi_band || (node.last_seen_port.includes('5G') ? '5GHz' : '2.4GHz')}
+            </div>
+          </div>` : ''}
           <div class="detail-item">
             <div class="label">Last Active</div>
             <div class="value">${lastSeenStr}</div>
           </div>
+          ${(node.tx_bps || node.rx_bps || node.activity) ? `
+          <div class="detail-item">
+            <div class="label">Current Speed</div>
+            <div class="value mono" style="color: #58a6ff;">↓ ${formatTraffic(node.rx_bps || node.activity * 8)} &nbsp; ↑ ${formatTraffic(node.tx_bps || 0)}</div>
+          </div>` : ''}
           <div class="control-row" style="margin-top: 18px;">
             <button type="button" onclick="forgetClient('${node.id}')" class="map-btn" style="width: 100%; background: #da3637; border-color: #f85149; height: auto; padding: 8px 12px;" onmouseover="this.style.background='#f85149'" onmouseout="this.style.background='#da3637'">
               Forget Device
@@ -1551,12 +2463,13 @@
 
         const portLabel = isSource ? link.source_port : link.target_port;
         const otherPortLabel = isSource ? link.target_port : link.source_port;
+        const totalTraffic = (link.tx_bps || 0) + (link.rx_bps || 0);
 
         html += `
           <div style="background: rgba(13, 17, 23, 0.4); border: 1px solid rgba(48, 54, 61, 0.3); border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 11px;">
             <div style="display: flex; justify-content: space-between; font-weight: 600; color: #f0f6fc;">
               <span>${otherNode.name}</span>
-              <span style="color: #58a6ff;">${link.speed}</span>
+              <span style="color: #58a6ff;">${link.speed}${totalTraffic > 0 ? ` (${formatTraffic(totalTraffic)})` : ''}</span>
             </div>
             <div style="color: #8b949e; margin-top: 4px; display: flex; justify-content: space-between;">
               <span>${portLabel ? portLabel : 'Direct'}</span>
@@ -1578,10 +2491,33 @@
 
   function showLinkTooltip(e, link, source, target) {
     let speedColor = '#8b949e';
-    if (link.speed.includes('10G')) speedColor = '#1f6feb';
-    else if (link.speed.includes('2.5G')) speedColor = '#58a6ff';
-    else if (link.speed.includes('1G') || link.speed.includes('1000M')) speedColor = '#3fb950';
-    else if (link.speed.includes('100M')) speedColor = '#f08a24';
+    let bandLabel = '';
+    const wBand = (link.wifi_band || (target && target.wifi_band) || (source && source.wifi_band) || '').toLowerCase();
+    const sPort = (link.source_port || '').toLowerCase();
+    const tPort = (link.target_port || '').toLowerCase();
+
+    const is24G = wBand.includes('2.4') || sPort.includes('2.4g') || sPort.includes('2.4ghz') || tPort.includes('2.4g') || tPort.includes('2.4ghz');
+    const is5G = wBand.includes('5') || sPort.includes('5g') || sPort.includes('5ghz') || tPort.includes('5g') || tPort.includes('5ghz');
+    const is6G = wBand.includes('6') || sPort.includes('6g') || sPort.includes('6ghz') || tPort.includes('6g') || tPort.includes('6ghz');
+
+    if (is24G) {
+      speedColor = '#a371f7';
+      bandLabel = ' (2.4 GHz)';
+    } else if (is5G) {
+      speedColor = '#f778ba';
+      bandLabel = ' (5 GHz)';
+    } else if (is6G) {
+      speedColor = '#79c0ff';
+      bandLabel = ' (6 GHz)';
+    } else if (link.speed.includes('10G')) {
+      speedColor = '#1f6feb';
+    } else if (link.speed.includes('2.5G')) {
+      speedColor = '#58a6ff';
+    } else if (link.speed.includes('1G') || link.speed.includes('1000M')) {
+      speedColor = '#3fb950';
+    } else if (link.speed.includes('100M')) {
+      speedColor = '#f08a24';
+    }
 
     let trafficHtml = '';
     if (link.tx_bps || link.rx_bps) {
@@ -1600,7 +2536,7 @@
     tooltip.innerHTML = `
       <div class="title">
         <span>Connection Link</span>
-        <span style="color: ${speedColor}">${link.speed}</span>
+        <span style="color: ${speedColor}">${link.speed || ''}${bandLabel}</span>
       </div>
       <div class="row">
         <span>Source:</span>
@@ -1666,7 +2602,7 @@
     matches.slice(0, 5).forEach(node => {
       html += `
         <div class="search-suggestion-item" onclick="triggerDeviceHighlight('${node.id}')">
-          <span>${node.name} <span style="font-size:10px; color:#8b949e; margin-left:6px;">(${node.type === 'switch' ? node.ip : (node.type === 'unmanaged_switch' ? 'Port ' + node.parent_port : formatMacAddress(node.mac))})</span></span>
+          <span>${node.name} <span style="font-size:10px; color:#8b949e; margin-left:6px;">(${node.type === 'switch' ? node.ip : (node.type === 'unmanaged_switch' ? 'Port ' + node.parent_port : (node.ip ? node.ip : formatMacAddress(node.mac)))})</span></span>
           <span class="type">${node.type}</span>
         </div>
       `;
@@ -1711,6 +2647,16 @@
     if (!confirm("Are you sure you want to reset the map layout? This will clear all custom device coordinates and cannot be undone.")) {
       return;
     }
+    currentLayoutIndex = 0;
+    const labelEl = document.getElementById('current-layout-label');
+    if (labelEl) labelEl.textContent = LAYOUT_MODES[0].name;
+
+    const indexEl = document.getElementById('current-layout-index');
+    if (indexEl) indexEl.textContent = `1/${LAYOUT_MODES.length}`;
+
+    const selectEl = document.getElementById('layout-select');
+    if (selectEl) selectEl.value = LAYOUT_MODES[0].id;
+
     for (let key in positionCache) {
       delete positionCache[key];
     }
@@ -1723,7 +2669,8 @@
     } catch (e) {
       console.error("Failed to clear map coordinates on server:", e);
     }
-    processAndRender();
+    showToast('🔄 Map layout reset to default Vertical Hierarchy');
+    processAndRender('tree_vertical');
   }
 
   async function updateClientHost(mac, host) {
