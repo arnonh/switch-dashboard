@@ -602,6 +602,9 @@
   <span style="display: flex; align-items: center; gap: 6px;">
     <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: #8b949e; margin-right: 2px; display: inline-block; vertical-align: middle;"><path d="M 4,5 h 3 v 3 h 10 v -3 h 3 v 14 h -16 z" /></svg> Fiber (SFP+)
   </span>
+  <span style="display: flex; align-items: center; gap: 6px;">
+    <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: #8b949e; margin-right: 2px; display: inline-block; vertical-align: middle;"><path d="M 12 18 a 1.5 1.5 0 1 0 0.001 0 z M 4.93 12.93 a 10 10 0 0 1 14.14 0 l -1.42 1.42 a 8 8 0 0 0 -11.31 0 z M 7.76 15.76 a 6 6 0 0 1 8.48 0 l -1.42 1.42 a 4 4 0 0 0 -5.66 0 z M 2.1 10.1 a 14 14 0 0 1 19.8 0 l -1.42 1.42 a 12 12 0 0 0 -16.96 0 z" /></svg> Wireless (WLAN)
+  </span>
 </div>
 <div id="app" class="loading">Loading dashboard</div>
 <div class="footer">
@@ -1046,6 +1049,7 @@ function getMacState(ip) {
   if (!state.filters) {
     state.filters = {
       mac: '',
+      ip: '',
       host: '',
       vendor: '',
       type: '',
@@ -1167,6 +1171,7 @@ function toggleIgmpTable(ip) {
 function filterMacTable(ip) {
   const state = getMacState(ip);
   const fMac = document.querySelector(`.mac-filter-mac-${CSS.escape(ip)}`);
+  const fIp = document.querySelector(`.mac-filter-ip-${CSS.escape(ip)}`);
   const fHost = document.querySelector(`.mac-filter-host-${CSS.escape(ip)}`);
   const fVendor = document.querySelector(`.mac-filter-vendor-${CSS.escape(ip)}`);
   const fType = document.querySelector(`.mac-filter-type-${CSS.escape(ip)}`);
@@ -1174,6 +1179,7 @@ function filterMacTable(ip) {
   const fVlan = document.querySelector(`.mac-filter-vlan-${CSS.escape(ip)}`);
   
   if (fMac) state.filters.mac = fMac.value.trim().toLowerCase();
+  if (fIp) state.filters.ip = fIp.value.trim().toLowerCase();
   if (fHost) state.filters.host = fHost.value.trim().toLowerCase();
   if (fVendor) state.filters.vendor = fVendor.value.trim().toLowerCase();
   if (fType) state.filters.type = fType.value.trim().toLowerCase();
@@ -1269,7 +1275,7 @@ function renderMacTable(ip) {
   const tbody = document.querySelector(`.mac-tbody-${CSS.escape(ip)}`);
   if (!tbody) return;
   
-  ['mac', 'host', 'vendor', 'type', 'port', 'vlan'].forEach(col => {
+  ['mac', 'ip', 'host', 'vendor', 'type', 'port', 'vlan'].forEach(col => {
     const indicator = document.querySelector(`.sort-indicator-${CSS.escape(ip)}-${col}`);
     if (indicator) {
       if (state.sortBy === col) {
@@ -1282,16 +1288,17 @@ function renderMacTable(ip) {
   });
 
   let rows = state.data;
-  const filters = state.filters || { mac: '', host: '', vendor: '', type: '', port: '', vlan: '' };
-  if (filters.mac || filters.host || filters.vendor || filters.type || filters.port || filters.vlan) {
+  const filters = state.filters || { mac: '', ip: '', host: '', vendor: '', type: '', port: '', vlan: '' };
+  if (filters.mac || filters.ip || filters.host || filters.vendor || filters.type || filters.port || filters.vlan) {
     rows = rows.filter(r => {
       const matchMac = !filters.mac || (r.mac || '').toLowerCase().includes(filters.mac);
+      const matchIp = !filters.ip || (r.ip || '').toLowerCase().includes(filters.ip);
       const matchHost = !filters.host || (r.host || '').toLowerCase().includes(filters.host);
       const matchVendor = !filters.vendor || (r.vendor || '').toLowerCase().includes(filters.vendor);
       const matchType = !filters.type || (r.type || '').toLowerCase().includes(filters.type);
       const matchPort = !filters.port || (r.port || '').toString().toLowerCase().includes(filters.port);
       const matchVlan = !filters.vlan || (r.vlan || '').toString().toLowerCase().includes(filters.vlan);
-      return matchMac && matchHost && matchVendor && matchType && matchPort && matchVlan;
+      return matchMac && matchIp && matchHost && matchVendor && matchType && matchPort && matchVlan;
     });
   }
 
@@ -1305,6 +1312,17 @@ function renderMacTable(ip) {
     } else if (state.sortBy === 'vlan') {
       valA = parseVlanForSort(valA);
       valB = parseVlanForSort(valB);
+    } else if (state.sortBy === 'ip') {
+      const parseIp = ipStr => {
+        if (!ipStr) return 0;
+        const parts = ipStr.split('.').map(n => parseInt(n, 10));
+        if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+          return ((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+        }
+        return ipStr.toLowerCase();
+      };
+      valA = parseIp(valA);
+      valB = parseIp(valB);
     } else {
       valA = valA.toString().toLowerCase();
       valB = valB.toString().toLowerCase();
@@ -1316,7 +1334,7 @@ function renderMacTable(ip) {
   });
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="padding: 12px; text-align: center; color: #8b949e;">No MAC entries found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="padding: 12px; text-align: center; color: #8b949e;">No MAC entries found</td></tr>`;
     const container = document.querySelector(`.mac-scroll-container-${CSS.escape(ip)}`);
     if (container) {
       container.scrollTop = state.scrollTop || 0;
@@ -1338,6 +1356,7 @@ function renderMacTable(ip) {
     return `
       <tr style="border-bottom: 1px solid #21262d; transition: background 0.15s;" onmouseover="this.style.background='#1c2128'" onmouseout="this.style.background='transparent'">
         <td style="padding: 8px 12px; font-family: 'SF Mono', Monaco, monospace; color: #c9d1d9;">${r.mac}</td>
+        <td style="padding: 8px 12px; font-family: 'SF Mono', Monaco, monospace; color: #58a6ff;">${r.ip || '<span style="color: #6e7681;">-</span>'}</td>
         <td style="padding: 4px 12px; color: #b1bac4;">${hostInputHtml}</td>
         <td style="padding: 8px 12px; color: #b1bac4;">${vendorHtml}</td>
         <td style="padding: 8px 12px; color: #8b949e;">${r.type}</td>
@@ -1430,12 +1449,12 @@ function speedClass(speed, status) {
   if (!speed) return '';
   const s = speed.toLowerCase();
   if (s.includes('10g')) return 'speed-10g';
-  if (s.includes('2500') || s.includes('2.5g')) return 'speed-2500m';
+  if (s.includes('2500') || s.includes('2.5g') || s.includes('2402') || s.includes('2400') || s.includes('4804')) return 'speed-2500m';
   if (s.includes('2000') || s.includes('2g')) return 'speed-2000m';
-  if (s.includes('1000') || s.includes('1g')) return 'speed-1000m';
-  if (s.includes('100')) return 'speed-100m';
+  if (s.includes('1000') || s.includes('1g') || s.includes('1201') || s.includes('867')) return 'speed-1000m';
+  if (s.includes('574') || s.includes('300') || s.includes('100')) return 'speed-100m';
   if (s.includes('10')) return 'speed-10m';
-  return '';
+  return 'speed-1000m';
 }
 
 function formatTime(ts) {
@@ -1467,16 +1486,16 @@ function renderSwitch(sw) {
     }
     const speed = (p.speed || '').toLowerCase();
     if (speed.includes('10g')) return '#1f6feb'; // 10G (dark blue)
-    if (speed.includes('2.5g') || speed.includes('2500') || speed.includes('2g') || speed.includes('2000')) {
+    if (speed.includes('2.5g') || speed.includes('2500') || speed.includes('2g') || speed.includes('2000') || speed.includes('2402') || speed.includes('2400') || speed.includes('4804')) {
       return '#58a6ff'; // 2.5G/2G (medium blue)
     }
-    if (speed.includes('1g') || speed.includes('1000')) {
+    if (speed.includes('1g') || speed.includes('1000') || speed.includes('1201') || speed.includes('867')) {
       return '#3fb950'; // 1G (green)
     }
-    if (speed.includes('100') || speed.includes('10')) {
+    if (speed.includes('574') || speed.includes('300') || speed.includes('100') || speed.includes('10')) {
       return '#f08a24'; // 100M/10M (orange)
     }
-    return '#57606a'; // Down/fallback (grey)
+    return '#3fb950'; // Down/fallback (green if up)
   };
 
   const wrapThreshold = typeof PORTS_WRAP_THRESHOLD !== 'undefined' ? parseInt(PORTS_WRAP_THRESHOLD) : 0;
@@ -1484,6 +1503,9 @@ function renderSwitch(sw) {
   
   const portHtmlList = rawPorts.map(p => {
     const isSfp = (p.port === '9' || (p.speed || '').toLowerCase().includes('10g') || p.port === 'SFP' || p.port === '9/SFP');
+    const pPortStr = String(p.port || '').toLowerCase();
+    const pNameStr = String(p.name || '').toLowerCase();
+    const isWifi = pPortStr.includes('g') || pPortStr.includes('wlan') || pNameStr.includes('wlan') || pNameStr.includes('wifi') || pNameStr.includes('radio') || pPortStr.includes('ssid') || pNameStr.includes('ssid');
     const color = getPortColor(p);
     
     let tooltipParts = [];
@@ -1497,13 +1519,16 @@ function renderSwitch(sw) {
     const titleText = `Port ${p.port}${details}: ${p.status.toUpperCase()} ${p.speed || ''} (${p.duplex || ''}) - Click to view graph`;
     const path = isSfp 
       ? 'M 4,5 h 3 v 3 h 10 v -3 h 3 v 14 h -16 z' // SFP (Fiber)
+      : isWifi
+      ? 'M 12 18 a 1.5 1.5 0 1 0 0.001 0 z M 4.93 12.93 a 10 10 0 0 1 14.14 0 l -1.42 1.42 a 8 8 0 0 0 -11.31 0 z M 7.76 15.76 a 6 6 0 0 1 8.48 0 l -1.42 1.42 a 4 4 0 0 0 -5.66 0 z M 2.1 10.1 a 14 14 0 0 1 19.8 0 l -1.42 1.42 a 12 12 0 0 0 -16.96 0 z' // WiFi
       : 'M 4,8 h 5 v -3 h 6 v 3 h 5 v 11 h -16 z'; // RJ45 (Copper)
+    const displayPort = String(p.port || '').startsWith('SSID: ') ? String(p.port).slice(6) : p.port;
       
     return `
       <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer;" 
            title="${titleText}"
            onclick="openGraph('${sw.ip}','${p.port}','${sw.name}','Port ${p.port}', ${p.cum_tx || p.tx_bytes || 0}, ${p.cum_rx || p.rx_bytes || 0})">
-        <span style="font-size: 10px; color: #8b949e; font-weight: 700; margin-bottom: 2px;">${p.port}</span>
+        <span style="font-size: 10px; color: #8b949e; font-weight: 700; margin-bottom: 2px; max-width: 65px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${p.port}">${displayPort}</span>
         <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: ${color}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); transition: all 0.15s ease-in-out; transform: scale(1);"
              onmouseover="this.style.transform='scale(1.2)';"
              onmouseout="this.style.transform='scale(1)';">
@@ -1627,6 +1652,7 @@ function renderSwitch(sw) {
             <thead>
               <tr style="background: #161b22; position: sticky; top: 0; z-index: 2; border-bottom: 1px solid #30363d;">
                 ${renderMacTh('mac', 'MAC Address')}
+                ${renderMacTh('ip', 'IP Address')}
                 ${renderMacTh('host', 'Host')}
                 ${renderMacTh('vendor', 'Vendor')}
                 ${renderMacTh('type', 'Type')}
@@ -1634,12 +1660,13 @@ function renderSwitch(sw) {
                 ${renderMacTh('vlan', 'VLAN')}
               </tr>
               <tr style="background: #0d1117; position: sticky; top: 31px; z-index: 2; border-bottom: 1px solid #30363d;">
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-mac-${sw.ip}" placeholder="Filter MAC..." value="${macState.filters ? macState.filters.mac : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-host-${sw.ip}" placeholder="Filter Host..." value="${macState.filters ? macState.filters.host : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-vendor-${sw.ip}" placeholder="Filter Vendor..." value="${macState.filters ? macState.filters.vendor : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-type-${sw.ip}" placeholder="Filter Type..." value="${macState.filters ? macState.filters.type : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-port-${sw.ip}" placeholder="Port..." value="${macState.filters ? macState.filters.port : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
-                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-vlan-${sw.ip}" placeholder="VLAN..." value="${macState.filters ? macState.filters.vlan : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-mac-${sw.ip}" placeholder="Filter MAC..." value="${macState.filters ? (macState.filters.mac || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-ip-${sw.ip}" placeholder="Filter IP..." value="${macState.filters ? (macState.filters.ip || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-host-${sw.ip}" placeholder="Filter Host..." value="${macState.filters ? (macState.filters.host || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-vendor-${sw.ip}" placeholder="Filter Vendor..." value="${macState.filters ? (macState.filters.vendor || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-type-${sw.ip}" placeholder="Filter Type..." value="${macState.filters ? (macState.filters.type || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-port-${sw.ip}" placeholder="Port..." value="${macState.filters ? (macState.filters.port || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
+                <th style="padding: 4px 6px;"><input type="text" class="mac-filter-vlan-${sw.ip}" placeholder="VLAN..." value="${macState.filters ? (macState.filters.vlan || '') : ''}" onfocus="focusMacSearch()" onblur="blurMacSearch()" oninput="filterMacTable('${sw.ip}')" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #e1e4e8; font-size: 11px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"></th>
               </tr>
             </thead>
             <tbody class="mac-tbody-${sw.ip}">

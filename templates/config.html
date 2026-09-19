@@ -933,6 +933,27 @@
   </div>
 </div>
 
+<!-- Clear Clients Confirmation Modal -->
+<div id="clear-clients-modal" class="modal-backdrop" onclick="if(event.target===this) closeClearClientsModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="#da3633"/>
+      </svg>
+      <h3 style="color: #f85149;">Clear All Detected Clients</h3>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to clear all detected client devices from the database?</p>
+      <p>This will erase all cached client hostnames, custom device types, and client positions on the network map.</p>
+      <p class="modal-warning" style="color: #f85149;">Connected clients will be automatically re-discovered on the next network cycle.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" onclick="closeClearClientsModal()">Cancel</button>
+      <button type="button" class="btn-confirm" id="confirm-clear-clients-btn" onclick="executeClearClients()" style="background: #da3633; box-shadow: 0 0 12px rgba(218, 54, 51, 0.4);">Confirm Clear</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Omada Configuration AJAX Logic
 async function loadOmadaConfigAjax() {
@@ -1090,6 +1111,68 @@ async function importCsvFile() {
     feedback.style.color = '#f85149';
   } finally {
     importBtn.disabled = false;
+  }
+}
+
+// Clear Detected Clients Modal & Execution Logic
+function openClearClientsModal() {
+  document.getElementById('clear-clients-modal').classList.add('active');
+}
+
+function closeClearClientsModal() {
+  document.getElementById('clear-clients-modal').classList.remove('active');
+}
+
+async function executeClearClients() {
+  const btn = document.getElementById('confirm-clear-clients-btn');
+  const feedback = document.getElementById('clear-clients-feedback');
+  const countSpan = document.getElementById('detected-clients-count');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Clearing...';
+  }
+  
+  try {
+    const res = await fetch('/api/clients/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    closeClearClientsModal();
+    
+    if (res.ok && data.status === 'ok') {
+      if (feedback) {
+        feedback.className = 'yaml-feedback success';
+        feedback.textContent = `Success: Cleared ${data.cleared_count} detected client(s) from the database.`;
+        feedback.style.display = 'block';
+        feedback.style.color = '#3fb950';
+      }
+      if (countSpan) {
+        countSpan.innerHTML = 'Currently stored: <strong style="color: #c9d1d9;">0</strong> clients';
+      }
+    } else {
+      if (feedback) {
+        feedback.className = 'yaml-feedback error';
+        feedback.textContent = `Error: ${data.error || 'Failed to clear clients.'}`;
+        feedback.style.display = 'block';
+        feedback.style.color = '#f85149';
+      }
+    }
+  } catch (err) {
+    closeClearClientsModal();
+    if (feedback) {
+      feedback.className = 'yaml-feedback error';
+      feedback.textContent = `Network error: ${err.message}`;
+      feedback.style.display = 'block';
+      feedback.style.color = '#f85149';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Confirm Clear';
+    }
   }
 }
 

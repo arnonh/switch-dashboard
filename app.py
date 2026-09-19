@@ -2040,6 +2040,31 @@ def api_topology():
         elif not is_active:
             speed = "offline"
 
+        # Resolve client IP address when available
+        client_ip = (
+            client_entry.get("client_ip", "") or
+            client_entry.get("scanner_ip", "") or
+            ""
+        )
+        if not client_ip:
+            # Check switch mac tables
+            for sw_node in switches_by_ip.values():
+                for m_entry in sw_node.get("mac_table", []):
+                    if normalize_mac(m_entry.get("mac", "")) == mac and m_entry.get("ip"):
+                        client_ip = m_entry.get("ip")
+                        break
+                if client_ip:
+                    break
+        if not client_ip:
+            # Check Omada client list
+            try:
+                for om_c in omada_integration.get_clients():
+                    if normalize_mac(om_c.get("mac", "")) == mac and om_c.get("ip"):
+                        client_ip = om_c.get("ip")
+                        break
+            except Exception:
+                pass
+
         # Resolve Wi-Fi band if applicable
         wifi_band = ""
         try:
@@ -2097,7 +2122,7 @@ def api_topology():
         clients[mac] = {
             "id": mac,
             "name": display_name,
-            "ip": "",
+            "ip": client_ip,
             "mac": formatted_mac,
             "host": host_name,
             "type": "client",
